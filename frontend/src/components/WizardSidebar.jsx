@@ -98,6 +98,9 @@ export default function WizardSidebar({
           const isLocked = !isUnlocked;
           const isActive = activeStageId === s.num;
 
+          const isSkipped = isDone && stageScores && typeof stageScores === "object" && Number(stageScores[s.num]) === 0 && s.pts > 0;
+          const statusTag = isLocked ? "(LOCKED)" : isSkipped ? "· SKIPPED" : isDone ? "✓ DONE" : isOptional ? "· OPTIONAL" : "";
+
           return (
             <button
               key={s.num}
@@ -109,12 +112,12 @@ export default function WizardSidebar({
                 opacity: isLocked ? 0.45 : 1,
                 cursor: isLocked ? "not-allowed" : "pointer"
               }}
-              title={isLocked ? `Complete the previous stage first to unlock Stage 0${dispNum}` : (isDone ? `Stage 0${dispNum} Completed (Click to review/edit)` : (isOptional ? `Stage 0${dispNum} Optional for Self-Trained` : `Stage 0${dispNum} Active`))}
+              title={isLocked ? `Complete the previous stage first to unlock Stage 0${dispNum}` : (isSkipped ? `Stage 0${dispNum} Skipped for Now (Click to complete & earn points)` : isDone ? `Stage 0${dispNum} Completed (Click to review/edit)` : (isOptional ? `Stage 0${dispNum} Optional for Self-Trained` : `Stage 0${dispNum} Active`))}
               onClick={() => onSelect(s.num)}
             >
-              <span className="wiz-nav-item-icon">{isDone ? <i className="fa-solid fa-check"></i> : isLocked ? <i className="fa-solid fa-lock"></i> : STAGE_ICONS[s.icon] || "•"}</span>
+              <span className="wiz-nav-item-icon">{isDone ? (isSkipped ? <i className="fa-solid fa-clock-rotate-left" style={{ color: "#F59E0B" }}></i> : <i className="fa-solid fa-check"></i>) : isLocked ? <i className="fa-solid fa-lock"></i> : STAGE_ICONS[s.icon] || "•"}</span>
               <span className="wiz-nav-item-info">
-                <span className="wiz-nav-item-num">STAGE 0{dispNum} {isLocked ? "(LOCKED)" : (isDone ? "✓ DONE" : (isOptional ? "· OPTIONAL" : ""))}</span>
+                <span className="wiz-nav-item-num">STAGE 0{dispNum} {statusTag}</span>
                 <span className="wiz-nav-item-title">{s.short}</span>
               </span>
               <span className="wiz-nav-item-pts">{ptsLabel(s, isDone)}</span>

@@ -1040,6 +1040,11 @@ export default function CompanyPortal() {
                       {selectedCandidate.name} {selectedCandidate.aadhaarVerified && <span style={{ color: "#22C55E", fontSize: 18 }} title="Aadhaar Verified"><i className="fa-solid fa-shield-halved" style={{ marginRight: 4 }}></i> Aadhaar Verified</span>}
                     </h2>
                     <div style={{ fontSize: 14, color: "#64748B" }}>{selectedCandidate.currentRole || "Role not specified"}{selectedCandidate.city ? ` • ${selectedCandidate.city}` : ""}</div>
+                    {Array.isArray(selectedCandidate.preferredCities) && selectedCandidate.preferredCities.length > 0 && (
+                      <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>
+                        Willing to work in: {selectedCandidate.preferredCities.map((pc, i) => `${i + 1}. ${pc}`).join("  ·  ")}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1098,7 +1103,26 @@ export default function CompanyPortal() {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 13, marginTop: 10 }}>
                   <div>{selectedCandidate.aadhaarVerified ? (<><i className="fa-solid fa-check" style={{ color: "#16A34A", marginRight: 4 }}></i> Basic Identity: <strong style={{ color: "#15803D" }}>Aadhaar Verified</strong></>) : (<>Basic Identity: <strong style={{ color: "#94A3B8" }}>Not verified</strong></>)}</div>
                   <div><i className="fa-solid fa-check" style={{ color: "#16A34A", marginRight: 4 }}></i> Academy Claim: <strong style={{ color: companyPlan === "free" ? "#64748B" : "#15803D" }}>{companyPlan === "free" ? (<><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Locked (Free Tier)</>) : (selectedCandidate.academyName || "Not claimed")}</strong></div>
-                  <div><i className="fa-solid fa-check" style={{ color: "#16A34A", marginRight: 4 }}></i> Proctored Test: <strong style={{ color: companyPlan === "free" ? "#64748B" : "#15803D" }}>{companyPlan === "free" ? (<><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Locked (Free Tier)</>) : selectedCandidate.assessmentScore != null ? `${selectedCandidate.assessmentScore}% Score` : "Not yet completed"}</strong></div>
+                  <div>
+                    <i className="fa-solid fa-check" style={{ color: "#16A34A", marginRight: 4 }}></i> Proctored Test:{" "}
+                    <strong style={{ color: companyPlan === "free" ? "#64748B" : "#15803D" }}>
+                      {companyPlan === "free" ? (
+                        <>
+                          <i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Locked (Free Tier)
+                        </>
+                      ) : selectedCandidate.assessmentScore != null ? (
+                        <>
+                          {selectedCandidate.assessmentScore}% Score{" "}
+                          <span style={{ fontSize: 11, color: "#64748B", fontWeight: 600 }}>
+                            ({selectedCandidate.assessmentAttemptsCount || selectedCandidate.assessmentAttempts?.length || 1} attempt{(selectedCandidate.assessmentAttemptsCount || selectedCandidate.assessmentAttempts?.length || 1) === 1 ? "" : "s"}
+                            {selectedCandidate.assessmentRetakes ? ` · ${selectedCandidate.assessmentRetakes} retake${selectedCandidate.assessmentRetakes === 1 ? "" : "s"}` : ""})
+                          </span>
+                        </>
+                      ) : (
+                        "Not yet completed"
+                      )}
+                    </strong>
+                  </div>
                   <div><i className="fa-solid fa-check" style={{ color: "#16A34A", marginRight: 4 }}></i> Live Chart Audit: <strong style={{ color: companyPlan === "free" ? "#64748B" : "#15803D" }}>{companyPlan === "free" ? (<><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Locked (Free Tier)</>) : selectedCandidate.accuracyScore != null ? `${selectedCandidate.accuracyScore}% Accuracy (${selectedCandidate.chartsAudited ?? 0} Charts)` : "Not yet completed"}</strong></div>
                   {companyPlan !== "free" && selectedCandidate.chartTier && (
                     <div>Chart Rating: <strong style={{ color: "#15803D" }}>{selectedCandidate.chartTier} Tier</strong> <span style={{ color: "#94A3B8", fontWeight: 600 }}>({selectedCandidate.chartsVerified ? (selectedCandidate.chartsVerificationMethod || "Verified") : "Self-Reported, pending review"})</span></div>

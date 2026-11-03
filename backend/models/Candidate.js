@@ -218,6 +218,10 @@ const CandidateSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // Twice-weekly career updates (utils/candidateEngagement.js). Default on; candidates can switch either off in Settings.
+    updatesEmail: { type: Boolean, default: true },
+    updatesWhatsapp: { type: Boolean, default: true },
+    lastEngagementAt: { type: Date, default: null },
     notificationsLastReadAt: {
       type: Date,
       default: null,

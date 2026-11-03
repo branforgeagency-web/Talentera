@@ -825,6 +825,8 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
   const [submittingRetake, setSubmittingRetake] = useState(false);
   const [retakeStatusMsg, setRetakeStatusMsg] = useState("");
   const [retakeRequest, setRetakeRequest] = useState(null);
+  const [retakePolicy, setRetakePolicy] = useState(null);
+  const [unlockingPaid, setUnlockingPaid] = useState(false);
 
   // Fetch candidate's active Stage 4 retake request on mount & when completed
   const fetchRetakeStatus = async () => {
@@ -832,11 +834,13 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
       const res = await api.get("/candidate/retake-request?stage=4");
       if (res.data?.request) {
         setRetakeRequest(res.data.request);
-        return res.data.request;
       } else {
         setRetakeRequest(null);
-        return null;
       }
+      if (res.data?.retakePolicy) {
+        setRetakePolicy(res.data.retakePolicy);
+      }
+      return res.data?.request || null;
     } catch (err) {
       console.warn("Could not fetch retake request:", err);
       return null;
@@ -862,6 +866,110 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
       if (pollTimer) clearInterval(pollTimer);
     };
   }, [retakeRequest?.status]);
+
+  // Assessment Attempts & Cooldown Policy Engine
+  // Policy: 1st retake in 24h, 2nd retake in 48h, 3rd in 7 days, after that paid retakes anytime
+  const attemptsList = useMemo(() => {
+    if (Array.isArray(stage4?.attempts) && stage4.attempts.length > 0) {
+      return stage4.attempts;
+    }
+    if (Array.isArray(retakePolicy?.attempts) && retakePolicy.attempts.length > 0) {
+      return retakePolicy.attempts;
+    }
+    if (isCompleted) {
+      return [{
+        attemptNumber: 1,
+        score: candidateScore,
+        medal: rawMedal || (candidateScore >= 85 ? "Gold" : candidateScore >= 70 ? "Silver" : "Bronze"),
+        completedAt: stage4?.completedAt || stage4?.lastAttemptAt || candidate?.updatedAt,
+        type: "Initial Attempt",
+        isPaid: false,
+      }];
+    }
+    return [];
+  }, [stage4, retakePolicy, isCompleted, candidateScore, rawMedal, candidate]);
+
+  const totalAttemptsCount = attemptsList.length;
+  const nextAttemptNumber = totalAttemptsCount + 1;
+  const nextRetakeNumber = totalAttemptsCount; // 1 attempt completed => next is 1st retake
+  const isPaidRetake = nextRetakeNumber >= 4; // Attempt 5+
+
+  // Cooldown durations in ms:
+  // 1st retake: 24 hours
+  // 2nd retake: 48 hours
+  // 3rd retake: 7 days (168 hours)
+  // 4th+ retake: 0 ms (anytime)
+  const cooldownDurationMs = isPaidRetake
+    ? 0
+    : nextRetakeNumber === 1
+    ? 24 * 60 * 60 * 1000
+    : nextRetakeNumber === 2
+    ? 48 * 60 * 60 * 1000
+    : nextRetakeNumber === 3
+    ? 7 * 24 * 60 * 60 * 1000
+    : 0;
+
+  const lastAttemptTimestamp = useMemo(() => {
+    if (attemptsList.length > 0) {
+      const last = attemptsList[attemptsList.length - 1];
+      const d = last.completedAt || stage4?.lastAttemptAt || stage4?.completedAt;
+      return d ? new Date(d).getTime() : Date.now();
+    }
+    return Date.now();
+  }, [attemptsList, stage4]);
+
+  const unlockTimestamp = isPaidRetake ? Date.now() : lastAttemptTimestamp + cooldownDurationMs;
+
+  const [remainingTimeMs, setRemainingTimeMs] = useState(() => Math.max(0, unlockTimestamp - Date.now()));
+
+  useEffect(() => {
+    if (isPaidRetake || !isCompleted) {
+      setRemainingTimeMs(0);
+      return;
+    }
+    const updateTime = () => {
+      const rem = Math.max(0, unlockTimestamp - Date.now());
+      setRemainingTimeMs(rem);
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, [unlockTimestamp, isPaidRetake, isCompleted]);
+
+  const isCooldownActive = remainingTimeMs > 0;
+  const isRetakeUnlocked =
+    !isCooldownActive ||
+    retakeRequest?.status === "APPROVED" ||
+    Boolean(stage4?.isRetakeApproved) ||
+    Boolean(stage4?.unlockedForRetake);
+
+  const formattedCountdown = useMemo(() => {
+    if (remainingTimeMs <= 0) return "Unlocked Now";
+    const totalSecs = Math.floor(remainingTimeMs / 1000);
+    const days = Math.floor(totalSecs / 86400);
+    const hours = Math.floor((totalSecs % 86400) / 3600);
+    const mins = Math.floor((totalSecs % 3600) / 60);
+    const secs = totalSecs % 60;
+    if (days > 0) return `${days}d ${hours}h ${mins}m ${secs}s`;
+    if (hours > 0) return `${hours}h ${mins}m ${secs}s`;
+    return `${mins}m ${secs}s`;
+  }, [remainingTimeMs]);
+
+  async function handleUnlockPaidRetake() {
+    setUnlockingPaid(true);
+    try {
+      const res = await api.post("/candidate/stage/4/unlock-paid-retake");
+      toast(res.data.message || "✓ Paid retake unlocked! You can now take your test anytime.", "✓");
+      await fetchRetakeStatus();
+      if (res.data?.retakePolicy) {
+        setRetakePolicy(res.data.retakePolicy);
+      }
+    } catch (err) {
+      toast(err.response?.data?.message || "Failed to unlock paid retake.", "!");
+    } finally {
+      setUnlockingPaid(false);
+    }
+  }
 
   // Test Runner State (45 minutes for 25 questions)
   const [currentQIndex, setCurrentQIndex] = useState(0);
@@ -1177,20 +1285,27 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
         proctorWarningsCount: finalAttentionWarnings,
         timeSpentSeconds: finalTimeSpent,
         completedAt: new Date().toISOString(),
-        attemptNumber: 1,
-        isRetakeApproved: false,
+        attemptNumber: nextAttemptNumber,
+        isRetakeApproved: isRetakeUnlocked,
+        isPaid: isPaidRetake,
       };
 
       try {
         const res = await api.put("/candidate/stage/4", payload);
+        if (res.data?.stage4) {
+          setLocalResult(res.data.stage4);
+        } else {
+          setLocalResult(payload);
+        }
         if (onSaved) {
           onSaved(res.data, { advance: false });
         }
       } catch (saveErr) {
         console.warn("Backend save notice:", saveErr);
+        setLocalResult(payload);
       }
 
-      setLocalResult(payload);
+      await fetchRetakeStatus();
       if (isAutoSubmitted) {
         setRetakeRequest(null);
       }
@@ -1552,6 +1667,23 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               GET READY · TAKE THE TEST · YOU EARN +20 POINTS
             </div>
           </div>
+
+          {/* STAGE SKIPPED NOTIFICATION BANNER (when returning to prepare & complete) */}
+          {stage4?.skipped && !isCompleted && (
+            <div style={{ background: "#FEF3C7", border: "1.5px solid #F59E0B", borderRadius: 14, padding: "16px 20px", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                <i className="fa-solid fa-clock-rotate-left" style={{ color: "#D97706", fontSize: 20, marginTop: 2 }} />
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: "#92400E", marginBottom: 3 }}>
+                    Stage 04 Skipped for Now · Ready to Take Your Assessment?
+                  </div>
+                  <div style={{ fontSize: 12.5, color: "#B45309", lineHeight: 1.5 }}>
+                    You previously skipped this stage to prepare. Complete the hardware check below and launch the 25-question proctored assessment whenever you are ready to earn your +20 verification points.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ═══════ SCREEN 1 · SYSTEM CHECK (REAL HARDWARE & SENSORS) ═══════ */}
           <div id="stage4-syscheck-section" style={{ background: "#FAFAF7", padding: "20px 22px", borderRadius: 14, marginBottom: 16, border: "1px solid #E5E7EB" }}>
@@ -2013,7 +2145,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               {[
                 "I have 30 uninterrupted minutes available right now.",
                 "I am the only person in the room. No one else allowed on camera and no movement in background.",
-                "I understand this is my Attempt 1 of 5 lifetime. First retake unlocks in 7 days.",
+                "I understand Attempt 1 is recorded on Talentera. 1st retake unlocks in 24 hours, 2nd in 48 hours, 3rd in 7 days, and paid retakes can be taken anytime.",
                 "My score is final on submission. Companies view this as verified — no negotiations.",
                 "I understand that tab-switching, phone use or looking away triggers an auto-submit.",
                 "I consent to webcam + audio + screen recording (retained 30 days for audit purposes).",
@@ -2147,7 +2279,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                 {isAutoSubmitted
                   ? `Violation: ${autoSubmitReason} · Attempt terminated.`
                   : isCompleted
-                  ? "Attempt 1 of 5 Completed · Recorded on Talentera Database"
+                  ? `Attempt ${totalAttemptsCount} Completed · Recorded on Talentera Database`
                   : "Opens locked proctored testing window · 30 min · anti-cheat live"}
               </div>
 
@@ -2170,13 +2302,13 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                           marginBottom: 8,
                         }}
                       >
-                        Retake Requested · Pending Employee Approval
+                        <i className="fa-solid fa-clock" /> Retake Requested · Pending Employee Approval
                       </div>
                       <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", maxWidth: 500, margin: "0 auto" }}>
-                        Your retake request has been submitted to Talentera staff for audit. Strictly no retake without employee approval.
+                        Your early retake request has been submitted to Talentera staff for audit. If approved, cooldown is bypassed.
                       </div>
                     </div>
-                  ) : retakeRequest?.status === "APPROVED" ? (
+                  ) : isRetakeUnlocked ? (
                     <div>
                       <button
                         type="button"
@@ -2194,20 +2326,20 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                           boxShadow: "0 6px 16px rgba(245,180,26,0.35)",
                         }}
                       >
-                        Launch Approved Retake Assessment
+                        🚀 Launch Retake Assessment (Attempt {nextAttemptNumber})
                       </button>
                       <div style={{ marginTop: 8, fontSize: 11.5, color: "#86EFAC", fontWeight: 700 }}>
-                        ✓ Employee approved your retake! Complete hardware check to start.
+                        ✓ Retake unlocked! Complete hardware check to start Attempt {nextAttemptNumber}.
                       </div>
                     </div>
-                  ) : (
+                  ) : isPaidRetake ? (
                     <div>
                       <button
                         type="button"
-                        onClick={() => handleDirectRequestRetake()}
-                        disabled={submittingRetake}
+                        onClick={handleUnlockPaidRetake}
+                        disabled={unlockingPaid}
                         style={{
-                          background: "var(--gold)",
+                          background: "linear-gradient(135deg, var(--gold), #E08E00)",
                           color: "var(--navy)",
                           padding: "14px 36px",
                           borderRadius: 12,
@@ -2217,15 +2349,57 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                           cursor: "pointer",
                           letterSpacing: 0.5,
                           boxShadow: "0 6px 16px rgba(245,180,26,0.35)",
-                          transition: "all 0.15s ease",
                         }}
                       >
-                        {submittingRetake ? "Submitting Request..." : "Request Retake"}
+                        {unlockingPaid ? "Unlocking..." : `💳 Unlock Paid Retake (₹500) · Attempt ${nextAttemptNumber}`}
                       </button>
-                      <div style={{ marginTop: 10, fontSize: 11.5, color: isAutoSubmitted ? "#FCA5A5" : "rgba(255,255,255,0.7)" }}>
-                        {isAutoSubmitted
-                          ? "Assessment was auto-submitted. Click above to submit retake request for employee approval."
-                          : "Want to improve your score? Submit a formal retake request with reason for staff review."}
+                      <div style={{ marginTop: 8, fontSize: 11.5, color: "#FFF6E0" }}>
+                        Free retakes exhausted. Paid retakes can be taken <b>anytime</b> without cooldown restrictions.
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 10,
+                          background: "rgba(255, 255, 255, 0.12)",
+                          color: "#FFF",
+                          padding: "12px 24px",
+                          borderRadius: 10,
+                          fontSize: 14,
+                          fontWeight: 700,
+                          border: "1px solid rgba(255, 255, 255, 0.25)",
+                          marginBottom: 10,
+                        }}
+                      >
+                        <i className="fa-solid fa-hourglass-half" style={{ color: "var(--gold)" }} />
+                        <span>
+                          {nextRetakeNumber === 1 ? "1st Retake (24h cooldown)" : nextRetakeNumber === 2 ? "2nd Retake (48h cooldown)" : "3rd Retake (7d cooldown)"} unlocks in: <b style={{ color: "var(--gold)" }}>{formattedCountdown}</b>
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "center", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                        <button
+                          type="button"
+                          onClick={() => setShowRetakeModal(true)}
+                          style={{
+                            background: "transparent",
+                            color: "var(--gold)",
+                            border: "1.5px solid var(--gold)",
+                            padding: "8px 18px",
+                            borderRadius: 8,
+                            fontSize: 12.5,
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            transition: "all 0.15s ease",
+                          }}
+                        >
+                          Request Early Review (Skip Cooldown)
+                        </button>
+                      </div>
+                      <div style={{ marginTop: 8, fontSize: 11, color: "rgba(255,255,255,0.7)" }}>
+                        Had technical disruption or power outage? Submit a formal request for staff audit.
                       </div>
                     </div>
                   )}
@@ -2236,10 +2410,11 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                     <button
                       type="button"
                       onClick={handleStartRealTest}
+                      disabled={!isSystemReady || !allRulesChecked}
                       style={{
                         background: isSystemReady && allRulesChecked ? "var(--gold)" : "rgba(245,180,26,0.3)",
                         color: isSystemReady && allRulesChecked ? "var(--navy)" : "rgba(15,27,61,0.5)",
-                        padding: "14px 36px",
+                        padding: "14px 32px",
                         borderRadius: 12,
                         fontSize: 15,
                         fontWeight: 800,
@@ -2253,7 +2428,31 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                         ? "Allow Camera & Mic in System Check to Unlock"
                         : !allRulesChecked
                         ? `Check all 6 rules to unlock (${6 - checkedRules.filter(Boolean).length} pending)`
-                        : "Launch Proctored Assessment "}
+                        : "Launch Proctored Assessment →"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleSaveAndFinishLater}
+                      disabled={savingForLater}
+                      style={{
+                        background: "rgba(255,255,255,0.14)",
+                        color: "#FFFFFF",
+                        border: "1.5px solid rgba(255,255,255,0.4)",
+                        padding: "14px 22px",
+                        borderRadius: 12,
+                        fontSize: 13.5,
+                        fontWeight: 800,
+                        cursor: savingForLater ? "default" : "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 8,
+                        transition: "all 0.15s ease",
+                      }}
+                      title="Skip this assessment for now to prepare. You can return and take it anytime."
+                    >
+                      <i className="fa-solid fa-forward" />
+                      {savingForLater ? "Skipping..." : "Skip for now & prepare (Complete later) →"}
                     </button>
                   </div>
                   <div style={{ marginTop: 12, fontSize: 11, color: "rgba(255,255,255,0.6)" }}>
@@ -2385,78 +2584,175 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               </div>
             )}
 
-            {/* RETAKE CARD */}
-            <div style={{ background: "#FFFFFF", border: "1.5px solid #E5E7EB", borderRadius: 12, padding: "16px 20px", marginTop: 14 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: 13.5 }}>
-                  Want to improve? Retake schedule
+            {/* RETAKE CARD & SCHEDULE */}
+            <div style={{ background: "#FFFFFF", border: "1.5px solid #E5E7EB", borderRadius: 12, padding: "18px 22px", marginTop: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+                <div>
+                  <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: 14 }}>
+                    Assessment Retake Schedule &amp; Policy
+                  </div>
+                  <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 2 }}>
+                    1st retake: 24h · 2nd: 48h · 3rd: 7 days · Paid retakes anytime · All attempts visible to companies
+                  </div>
                 </div>
-                <span style={{ background: "#FFF6E0", color: "#C99413", padding: "3px 10px", borderRadius: 8, fontSize: 10.5, fontWeight: 800 }}>
-                  Attempt 1 of 5 lifetime
+                <span style={{ background: "#FFF6E0", color: "#C99413", padding: "4px 12px", borderRadius: 8, fontSize: 11, fontWeight: 800 }}>
+                  {totalAttemptsCount} Attempt{totalAttemptsCount === 1 ? "" : "s"} Completed
                 </span>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginBottom: 12 }}>
-                <div style={{ background: isCompleted ? "#E8F5E9" : "#FFF3D6", color: isCompleted ? "#1F7A3C" : "#E08E00", padding: "8px 6px", borderRadius: 8, textAlign: "center" }}>
-                  <div style={{ fontSize: 10, fontWeight: 800 }}>{isCompleted ? "✓ ATTEMPT 1" : "ATTEMPT 1"}</div>
-                  <div style={{ fontSize: 9.5, marginTop: 2 }}>{isCompleted ? `Done · ${candidateScore}%` : "Pending Test"}</div>
-                  <div style={{ fontSize: 9, fontWeight: 800, marginTop: 1 }}>FREE</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginBottom: 14 }}>
+                {/* ATTEMPT 1 */}
+                <div style={{ background: attemptsList.length >= 1 ? "#E8F5E9" : "#FFF3D6", color: attemptsList.length >= 1 ? "#1F7A3C" : "#E08E00", padding: "10px 6px", borderRadius: 8, textAlign: "center", border: attemptsList.length === 1 ? "1.5px solid #1F7A3C" : "1px solid transparent" }}>
+                  <div style={{ fontSize: 10, fontWeight: 800 }}>{attemptsList.length >= 1 ? "✓ ATTEMPT 1" : "ATTEMPT 1"}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, marginTop: 3 }}>{attemptsList.length >= 1 ? `${attemptsList[0]?.score}%` : "Initial"}</div>
+                  <div style={{ fontSize: 9.5, fontWeight: 800, marginTop: 2 }}>FREE</div>
                 </div>
-                <div style={{ background: "#F2F3F5", color: "#8A91A3", padding: "8px 6px", borderRadius: 8, textAlign: "center" }}>
-                  <div style={{ fontSize: 10, fontWeight: 800 }}>ATTEMPT 2</div>
-                  <div style={{ fontSize: 9.5, marginTop: 2 }}>In 7 days</div>
-                  <div style={{ fontSize: 9, fontWeight: 800, marginTop: 1 }}>FREE</div>
+
+                {/* ATTEMPT 2 (1st Retake: 24h) */}
+                <div style={{ background: attemptsList.length >= 2 ? "#E8F5E9" : (nextRetakeNumber === 1 ? "#FEF3C7" : "#F2F3F5"), color: attemptsList.length >= 2 ? "#1F7A3C" : (nextRetakeNumber === 1 ? "#92400E" : "#8A91A3"), padding: "10px 6px", borderRadius: 8, textAlign: "center", border: nextRetakeNumber === 1 ? "1.5px solid #F59E0B" : "1px solid transparent" }}>
+                  <div style={{ fontSize: 10, fontWeight: 800 }}>{attemptsList.length >= 2 ? "✓ ATTEMPT 2" : "ATTEMPT 2"}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, marginTop: 3 }}>{attemptsList.length >= 2 ? `${attemptsList[1]?.score}%` : "1st Retake"}</div>
+                  <div style={{ fontSize: 9.5, fontWeight: 800, marginTop: 2 }}>24h · FREE</div>
                 </div>
-                <div style={{ background: "#F2F3F5", color: "#8A91A3", padding: "8px 6px", borderRadius: 8, textAlign: "center" }}>
-                  <div style={{ fontSize: 10, fontWeight: 800 }}>ATTEMPT 3</div>
-                  <div style={{ fontSize: 9.5, marginTop: 2 }}>14 days</div>
-                  <div style={{ fontSize: 9, fontWeight: 800, marginTop: 1 }}>FREE</div>
+
+                {/* ATTEMPT 3 (2nd Retake: 48h) */}
+                <div style={{ background: attemptsList.length >= 3 ? "#E8F5E9" : (nextRetakeNumber === 2 ? "#FEF3C7" : "#F2F3F5"), color: attemptsList.length >= 3 ? "#1F7A3C" : (nextRetakeNumber === 2 ? "#92400E" : "#8A91A3"), padding: "10px 6px", borderRadius: 8, textAlign: "center", border: nextRetakeNumber === 2 ? "1.5px solid #F59E0B" : "1px solid transparent" }}>
+                  <div style={{ fontSize: 10, fontWeight: 800 }}>{attemptsList.length >= 3 ? "✓ ATTEMPT 3" : "ATTEMPT 3"}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, marginTop: 3 }}>{attemptsList.length >= 3 ? `${attemptsList[2]?.score}%` : "2nd Retake"}</div>
+                  <div style={{ fontSize: 9.5, fontWeight: 800, marginTop: 2 }}>48h · FREE</div>
                 </div>
-                <div style={{ background: "#EEF2FF", color: "#1A4FB8", padding: "8px 6px", borderRadius: 8, textAlign: "center" }}>
-                  <div style={{ fontSize: 10, fontWeight: 800 }}>ATTEMPT 4</div>
-                  <div style={{ fontSize: 9.5, marginTop: 2 }}>15+ days</div>
-                  <div style={{ fontSize: 9, fontWeight: 800, marginTop: 1 }}>₹500</div>
+
+                {/* ATTEMPT 4 (3rd Retake: 7 days) */}
+                <div style={{ background: attemptsList.length >= 4 ? "#E8F5E9" : (nextRetakeNumber === 3 ? "#FEF3C7" : "#F2F3F5"), color: attemptsList.length >= 4 ? "#1F7A3C" : (nextRetakeNumber === 3 ? "#92400E" : "#8A91A3"), padding: "10px 6px", borderRadius: 8, textAlign: "center", border: nextRetakeNumber === 3 ? "1.5px solid #F59E0B" : "1px solid transparent" }}>
+                  <div style={{ fontSize: 10, fontWeight: 800 }}>{attemptsList.length >= 4 ? "✓ ATTEMPT 4" : "ATTEMPT 4"}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, marginTop: 3 }}>{attemptsList.length >= 4 ? `${attemptsList[3]?.score}%` : "3rd Retake"}</div>
+                  <div style={{ fontSize: 9.5, fontWeight: 800, marginTop: 2 }}>7d · FREE</div>
                 </div>
-                <div style={{ background: "#EEF2FF", color: "#1A4FB8", padding: "8px 6px", borderRadius: 8, textAlign: "center" }}>
-                  <div style={{ fontSize: 10, fontWeight: 800 }}>ATTEMPT 5</div>
-                  <div style={{ fontSize: 9.5, marginTop: 2 }}>30+ days</div>
-                  <div style={{ fontSize: 9, fontWeight: 800, marginTop: 1 }}>₹500</div>
+
+                {/* ATTEMPT 5+ (Paid Retakes: Anytime) */}
+                <div style={{ background: attemptsList.length >= 5 ? "#E8F5E9" : (isPaidRetake ? "#EEF2FF" : "#F8FAFC"), color: attemptsList.length >= 5 ? "#1F7A3C" : (isPaidRetake ? "#1E40AF" : "#64748B"), padding: "10px 6px", borderRadius: 8, textAlign: "center", border: isPaidRetake ? "1.5px solid #3B82F6" : "1px solid transparent" }}>
+                  <div style={{ fontSize: 10, fontWeight: 800 }}>ATTEMPT 5+</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, marginTop: 3 }}>{attemptsList.length >= 5 ? `${attemptsList.length} total` : "Anytime"}</div>
+                  <div style={{ fontSize: 9.5, fontWeight: 800, marginTop: 2 }}>₹500 · PAID</div>
                 </div>
               </div>
 
+              {/* Status Banner */}
               {isCompleted && (
-                <div style={{ background: "linear-gradient(135deg, #FFF3D6, #FFFBF1)", border: "1.5px solid #E08E00", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ width: 36, height: 36, background: "#E08E00", color: "#FFFFFF", borderRadius: 8, display: "grid", placeItems: "center", fontSize: 16, fontWeight: 800 }}>
-                    <i className="fa-solid fa-hourglass-half" />
+                <div style={{ background: isRetakeUnlocked ? "#F0FDF4" : isPaidRetake ? "#EEF2FF" : "linear-gradient(135deg, #FFF3D6, #FFFBF1)", border: `1.5px solid ${isRetakeUnlocked ? "#86EFAC" : isPaidRetake ? "#93C5FD" : "#E08E00"}`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+                  <div style={{ width: 38, height: 38, background: isRetakeUnlocked ? "#16A34A" : isPaidRetake ? "#2563EB" : "#E08E00", color: "#FFFFFF", borderRadius: 8, display: "grid", placeItems: "center", fontSize: 18, fontWeight: 800 }}>
+                    {isRetakeUnlocked ? <i className="fa-solid fa-check" /> : isPaidRetake ? <i className="fa-solid fa-bolt" /> : <i className="fa-solid fa-hourglass-half" />}
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 10.5, color: "#E08E00", fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase" }}>
-                      Next free retake unlocks in
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <div style={{ fontSize: 11, color: isRetakeUnlocked ? "#15803D" : isPaidRetake ? "#1E40AF" : "#E08E00", fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase" }}>
+                      {isRetakeUnlocked ? "Retake Unlocked" : isPaidRetake ? "Paid Retakes Available Anytime" : `Next Free Retake (#${nextRetakeNumber}) Unlocks In`}
                     </div>
-                    <div style={{ fontSize: 14, color: "var(--navy)", fontWeight: 800, marginTop: 1 }}>
-                      6 days · 23 hours
+                    <div style={{ fontSize: 14.5, color: "var(--navy)", fontWeight: 800, marginTop: 2 }}>
+                      {isRetakeUnlocked
+                        ? `Ready to launch Attempt #${nextAttemptNumber} now`
+                        : isPaidRetake
+                        ? "Take paid retake anytime with zero cooldown wait"
+                        : formattedCountdown}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowRetakeModal(true)}
-                    style={{
-                      background: "var(--navy)",
-                      color: "#FFFFFF",
-                      border: "none",
-                      padding: "6px 12px",
-                      borderRadius: 8,
-                      fontSize: 11.5,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Request Early Review
-                  </button>
+                  {isCooldownActive && !isPaidRetake && (
+                    <button
+                      type="button"
+                      onClick={() => setShowRetakeModal(true)}
+                      style={{
+                        background: "var(--navy)",
+                        color: "#FFFFFF",
+                        border: "none",
+                        padding: "8px 14px",
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Request Early Review
+                    </button>
+                  )}
+                  {isPaidRetake && !isRetakeUnlocked && (
+                    <button
+                      type="button"
+                      onClick={handleUnlockPaidRetake}
+                      disabled={unlockingPaid}
+                      style={{
+                        background: "#2563EB",
+                        color: "#FFFFFF",
+                        border: "none",
+                        padding: "8px 16px",
+                        borderRadius: 8,
+                        fontSize: 12.5,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {unlockingPaid ? "Unlocking..." : "Unlock Paid Retake (₹500)"}
+                    </button>
+                  )}
                 </div>
               )}
-              <div style={{ marginTop: 10, fontSize: 11.5, color: "#3A425A", lineHeight: 1.45 }}>
-                <b>Best score wins.</b> Your public profile shows your highest attempt. All attempts are logged and visible via the "Attempt log" chevron on your profile.
+
+              {/* Full Attempt Log History Table */}
+              {attemptsList.length > 0 && (
+                <div style={{ marginTop: 16, borderTop: "1px solid #E2E8F0", paddingTop: 14 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--navy)", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span>Recorded Attempts History ({attemptsList.length} attempt{attemptsList.length > 1 ? "s" : ""}):</span>
+                    <span style={{ fontSize: 11, color: "#15803D", fontWeight: 700 }}>
+                      👑 Best Score: {Math.max(...attemptsList.map((a) => Number(a.score) || 0))}% (Shown to Companies)
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {attemptsList.map((att, idx) => {
+                      const isBest = Number(att.score) === Math.max(...attemptsList.map((a) => Number(a.score) || 0));
+                      return (
+                        <div
+                          key={idx}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            background: isBest ? "#F0FDF4" : "#F8FAFC",
+                            border: `1px solid ${isBest ? "#86EFAC" : "#E2E8F0"}`,
+                            padding: "8px 12px",
+                            borderRadius: 8,
+                            fontSize: 12,
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontWeight: 800, color: "var(--navy)" }}>
+                              Attempt {att.attemptNumber || idx + 1}
+                            </span>
+                            <span style={{ fontSize: 11, color: "#64748B" }}>
+                              {att.type || (idx === 0 ? "Initial Attempt" : `Retake #${idx}`)}
+                            </span>
+                            {att.completedAt && (
+                              <span style={{ fontSize: 11, color: "#94A3B8" }}>
+                                · {new Date(att.completedAt).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            {isBest && (
+                              <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 10.5, fontWeight: 800, padding: "2px 8px", borderRadius: 10 }}>
+                                Best ✓
+                              </span>
+                            )}
+                            <span style={{ fontWeight: 800, color: att.score >= 70 ? "#15803D" : "#B45309" }}>
+                              {att.score}% ({att.medal || "Score"})
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ marginTop: 12, fontSize: 11.5, color: "#3A425A", lineHeight: 1.45 }}>
+                <b>Best score wins.</b> Your public profile shows your highest verified score. All attempts and retakes are logged and visible to hiring companies.
               </div>
             </div>
 
@@ -2486,8 +2782,9 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                   </div>
                 ))}
               </div>
-              <div style={{ fontSize: 11, color: "#FFF6E0", marginTop: 8 }}>
-                Full attempt log · Score valid for 12 months from assessment date
+              <div style={{ fontSize: 11, color: "#FFF6E0", marginTop: 8, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
+                <span>Full attempt log ({attemptsList.length} attempt{attemptsList.length === 1 ? "" : "s"} · {Math.max(0, attemptsList.length - 1)} retake{attemptsList.length - 1 === 1 ? "" : "s"}) visible to hiring companies</span>
+                <span>Score valid for 12 months</span>
               </div>
             </div>
 
@@ -2521,22 +2818,46 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               >
                 <i className="fa-solid fa-floppy-disk" style={{ marginRight: 6 }}></i> Save &amp; finish later
               </button>
-              <button
-                type="button"
-                onClick={() => onSaved && onSaved(null, { advance: true, nextStage: 5 })}
-                style={{
-                  background: "var(--gold)",
-                  color: "var(--navy)",
-                  padding: "11px 22px",
-                  borderRadius: 10,
-                  fontSize: 13,
-                  fontWeight: 800,
-                  border: "none",
-                  cursor: "pointer",
-                }}
-              >
-                Continue to Stage 05 · Video Round →
-              </button>
+              {!isCompleted ? (
+                <button
+                  type="button"
+                  onClick={handleSaveAndFinishLater}
+                  disabled={savingForLater}
+                  style={{
+                    background: "var(--gold)",
+                    color: "var(--navy)",
+                    padding: "11px 22px",
+                    borderRadius: 10,
+                    fontSize: 13,
+                    fontWeight: 800,
+                    border: "none",
+                    cursor: savingForLater ? "default" : "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 7,
+                  }}
+                >
+                  <i className="fa-solid fa-forward" />
+                  {savingForLater ? "Skipping..." : "Skip for now & prepare →"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onSaved && onSaved(null, { advance: true, nextStage: 5 })}
+                  style={{
+                    background: "var(--gold)",
+                    color: "var(--navy)",
+                    padding: "11px 22px",
+                    borderRadius: 10,
+                    fontSize: 13,
+                    fontWeight: 800,
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  Continue to Stage 05 · Video Round →
+                </button>
+              )}
             </div>
           </div>
 

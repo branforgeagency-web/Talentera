@@ -809,7 +809,22 @@ function formatCandidateForCompany(candidate, isKycVerified, plan) {
       },
       training: candidate.stage2 || {},
       certification: canViewScoresAndCerts ? (candidate.stage3 || {}) : { name: (candidate.stage3?.name || "Professional Certification"), masked: true },
-      assessment: canViewScoresAndCerts ? (candidate.stage4 || {}) : { masked: true },
+      assessment: canViewScoresAndCerts ? {
+        ...(candidate.stage4 || {}),
+        attempts: Array.isArray(candidate.stage4?.attempts) && candidate.stage4.attempts.length > 0
+          ? candidate.stage4.attempts
+          : (candidate.stage4?.score != null ? [{
+              attemptNumber: 1,
+              score: candidate.stage4.foundationScore ?? candidate.stage4.score,
+              medal: candidate.stage4.medal && !String(candidate.stage4.medal).toLowerCase().includes("practice") ? candidate.stage4.medal : (candidate.stage4.score >= 85 ? "Gold" : candidate.stage4.score >= 70 ? "Silver" : "Bronze"),
+              completedAt: candidate.stage4.completedAt || candidate.updatedAt,
+              type: "Initial Attempt",
+            }] : []),
+        retakeCount: candidate.stage4?.retakeCount ?? (Array.isArray(candidate.stage4?.attempts) && candidate.stage4.attempts.length > 1 ? candidate.stage4.attempts.length - 1 : 0),
+        totalAttempts: candidate.stage4?.totalAttempts ?? (Array.isArray(candidate.stage4?.attempts) ? candidate.stage4.attempts.length : (candidate.stage4?.score != null ? 1 : 0)),
+        highestScore: candidate.stage4?.highestScore ?? candidate.stage4?.score,
+        latestAttemptScore: candidate.stage4?.latestAttemptScore ?? candidate.stage4?.score,
+      } : { masked: true },
       videoIntro: {
         ...(candidate.stage5 || {}),
         videoUrl: candidate.stage5?.selfIntroVideoUrl || candidate.stage5?.videoUrl || candidate.stage5?.proctoredInterviewVideoUrl || candidate.stage5?.url || candidate.stage5?.fileUrl || candidate.stage5?.videoFileName || candidate.stage8?.aiInterview?.videoUrl || candidate.videoUrl || null,

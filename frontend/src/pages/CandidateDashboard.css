@@ -1333,11 +1333,15 @@ button { border: none; background: none; }
   height: 52px;
   margin: 0 auto 10px;
   border-radius: 14px;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 24px;
-  color: var(--white);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  background: transparent;
+}
+.badge-ico > i {
+  color: var(--gold);
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
 }
 .badge-ico.aadhaar { background: linear-gradient(135deg, #F97316, #EA580C); }
 .badge-ico.pan { background: var(--grad-blue); }

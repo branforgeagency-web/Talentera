@@ -13,11 +13,9 @@
  */
 
 // Matches backend/routes/candidate.js SKIPPABLE_STAGES exactly.
-// Training (2) and Certification (3) were previously skippable but are now
-// mandatory, same as every other stage except Build Resume (7) — a
-// candidate's training and certification history must be verified before
-// they're eligible for job search (see Jobs.jsx eligibility gate).
-const SKIPPABLE_STAGE_NUMS = [4, 7];
+// Stage 4 (Assessment), Stage 5 (Video Pitch), Stage 6 (Live Charts), and
+// Stage 7 (Resume) can be skipped for now and completed later when prepared.
+const SKIPPABLE_STAGE_NUMS = [4, 5, 6, 7];
 
 const RAW_WIZARD_STAGES = [
   {
@@ -298,6 +296,21 @@ export const STAGE_POINTS = {
   }, {}),
 };
 
+export const EXPERIENCED_STAGE_POINTS = {
+  1: 15,
+  2: 25,
+  3: 20,
+  4: 0,
+  5: 15,
+  6: 25,
+  7: 0,
+  8: 0,
+};
+
+export function getStagePoints(stageNum, isExperienced = false) {
+  return isExperienced ? (EXPERIENCED_STAGE_POINTS[stageNum] ?? 0) : (STAGE_POINTS[stageNum] ?? 0);
+}
+
 export const GOLD_BADGE_THRESHOLD = 75;
 
 // A candidate counts as self-trained when Stage 2 says so in ANY of these ways: they chose the
@@ -344,20 +357,26 @@ export function isStage6Optional(candidate) {
   return isSelfTrainedCandidate(candidate) || isLiveChartExemptDomain(candidate);
 }
 
-// Experienced candidates skip the Stage 04 Assessment - their score comes from certifications
-// instead (keep in sync with isExperiencedCandidate in backend/utils/verificationScore.js).
+// Experienced candidates skip the Stage 04 Assessment - their score comes from verified work experience,
+// certifications (5 pts per cert, max 20 pts), and production charts (Option A model).
 export function isExperiencedCandidate(candidate) {
-  return /exp/i.test(String(candidate?.stage1?.experience || ""));
+  if (!candidate) return false;
+  const s1Exp = String(candidate?.stage1?.experience || candidate?.stage1?.experienceLevel || "");
+  const rootExp = String(candidate?.experience || candidate?.experienceLevel || "");
+  return /exp/i.test(s1Exp) || /exp/i.test(rootExp);
 }
 
 export function getWizardStages(candidate) {
+  const experienced = isExperiencedCandidate(candidate);
   const stage6Optional = isStage6Optional(candidate);
   return RAW_WIZARD_STAGES.map((s) => {
     const isStage6Optional = s.num === 6 && stage6Optional;
-    const hidden = s.num === 4 && isExperiencedCandidate(candidate);
+    const hidden = s.num === 4 && experienced;
     const isSkippable = SKIPPABLE_STAGE_NUMS.includes(s.num) || isStage6Optional || hidden;
+    const pts = experienced ? (EXPERIENCED_STAGE_POINTS[s.num] ?? s.pts) : s.pts;
     return {
       ...s,
+      pts,
       hidden,
       mandatory: !isSkippable,
       skippable: isSkippable,

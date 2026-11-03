@@ -5,35 +5,35 @@ import { CERT_LIBRARY, CERT_ID_PATTERNS } from "../../data/certLibrary";
 import DocumentVaultModal from "../DocumentVaultModal.jsx";
 
 const REGIONS = [
-  { id: "us", name: "United States", flag: '', count: "69 certs" },
-  { id: "in", name: "India", flag: '', count: "55 certs" },
-  { id: "ph", name: "Philippines", flag: '', count: "51 certs" },
-  { id: "sa", name: "Saudi Arabia", flag: '', count: "39 certs" },
-  { id: "gcc", name: "UAE / Bahrain / Kuwait / Oman / Qatar (GCC)", flag: <i className="fa-solid fa-globe" />, count: "39 certs" },
-  { id: "au", name: "Australia", flag: '', count: "22 certs" },
-  { id: "nz", name: "New Zealand", flag: '', count: "7 certs" },
-  { id: "ca", name: "Canada", flag: '', count: "17 certs" },
-  { id: "uk", name: "United Kingdom", flag: '', count: "15 certs" },
-  { id: "my", name: "Malaysia", flag: '', count: "40 certs" },
-  { id: "sg", name: "Singapore", flag: '', count: "17 certs" },
-  { id: "za", name: "South Africa", flag: '', count: "10 certs" },
+  { id: "us", name: "United States", flag: '', count: "73 certs" },
+  { id: "in", name: "India", flag: '', count: "70 certs" },
+  { id: "ph", name: "Philippines", flag: '', count: "65 certs" },
+  { id: "sa", name: "Saudi Arabia", flag: '', count: "58 certs" },
+  { id: "gcc", name: "UAE / Bahrain / Kuwait / Oman / Qatar (GCC)", flag: <i className="fa-solid fa-globe" />, count: "56 certs" },
+  { id: "au", name: "Australia", flag: '', count: "62 certs" },
+  { id: "nz", name: "New Zealand", flag: '', count: "14 certs" },
+  { id: "ca", name: "Canada", flag: '', count: "52 certs" },
+  { id: "uk", name: "United Kingdom", flag: '', count: "52 certs" },
+  { id: "my", name: "Malaysia", flag: '', count: "56 certs" },
+  { id: "sg", name: "Singapore", flag: '', count: "60 certs" },
+  { id: "za", name: "South Africa", flag: '', count: "71 certs" },
   { id: "de", name: "Germany", flag: '', count: "4 certs" },
   { id: "br", name: "Brazil", flag: '', count: "1 cert" },
-  { id: "mx", name: "Mexico", flag: '', count: "35 certs" },
-  { id: "ng", name: "Nigeria", flag: '', count: "35 certs" },
+  { id: "mx", name: "Mexico", flag: '', count: "45 certs" },
+  { id: "ng", name: "Nigeria", flag: '', count: "45 certs" },
   { id: "th", name: "Thailand", flag: '', count: "1 cert" },
   { id: "jp", name: "Japan", flag: '', count: "1 cert" },
   { id: "fr", name: "France", flag: '', count: "2 certs" },
   { id: "ie", name: "Ireland", flag: '', count: "2 certs" },
   { id: "nl", name: "Netherlands", flag: '', count: "2 certs" },
-  { id: "ch", name: "Switzerland", flag: '', count: "2 certs" },
-  { id: "at", name: "Austria", flag: '', count: "2 certs" },
+  { id: "ch", name: "Switzerland", flag: '', count: "4 certs" },
+  { id: "at", name: "Austria", flag: '', count: "4 certs" },
 ];
 
 const BODIES_BY_REGION = {
   us: [
-    { key: "aapc", name: "AAPC", count: 33 },
-    { key: "ahima", name: "AHIMA", count: 8 },
+    { key: "aapc", name: "AAPC", count: 36 },
+    { key: "ahima", name: "AHIMA", count: 9 },
     { key: "hfma", name: "HFMA", count: 11 },
     { key: "aaham", name: "AAHAM", count: 5 },
     { key: "nha", name: "NHA", count: 1 },
@@ -44,71 +44,71 @@ const BODIES_BY_REGION = {
     { key: "wellsky", name: "WellSky", count: 3 },
   ],
   in: [
-    { key: "aapc", name: "AAPC", count: 33 },
-    { key: "ahima", name: "AHIMA", count: 8 },
-    { key: "hfma", name: "HFMA", count: 4 },
-    { key: "aaham", name: "AAHAM", count: 3 },
+    { key: "aapc", name: "AAPC", count: 36 },
+    { key: "ahima", name: "AHIMA", count: 9 },
+    { key: "hfma", name: "HFMA", count: 11 },
+    { key: "aaham", name: "AAHAM", count: 5 },
     { key: "nha", name: "NHA", count: 1 },
     { key: "iacmc", name: "IACMC", count: 2 },
     { key: "ahcc", name: "AHCC / BMSC", count: 3 },
-    { key: "wellsky", name: "WellSky", count: 1 },
+    { key: "wellsky", name: "WellSky", count: 3 },
   ],
   ph: [
-    { key: "aapc", name: "AAPC", count: 33 },
-    { key: "ahima", name: "AHIMA", count: 8 },
-    { key: "hfma", name: "HFMA", count: 3 },
+    { key: "aapc", name: "AAPC", count: 36 },
+    { key: "ahima", name: "AHIMA", count: 9 },
+    { key: "hfma", name: "HFMA", count: 11 },
     { key: "nha", name: "NHA", count: 1 },
     { key: "tesda", name: "TESDA", count: 2 },
     { key: "ahcc", name: "AHCC / BMSC", count: 3 },
-    { key: "wellsky", name: "WellSky", count: 1 },
+    { key: "wellsky", name: "WellSky", count: 3 },
   ],
   sa: [
-    { key: "aapc", name: "AAPC", count: 32 },
+    { key: "aapc", name: "AAPC", count: 36 },
     { key: "aapc_ksa", name: "AAPC (KSA specific)", count: 2 },
-    { key: "ahima", name: "AHIMA", count: 4 },
-    { key: "hfma", name: "HFMA", count: 1 },
+    { key: "ahima", name: "AHIMA", count: 9 },
+    { key: "hfma", name: "HFMA", count: 11 },
   ],
   gcc: [
-    { key: "aapc", name: "AAPC", count: 32 },
-    { key: "ahima", name: "AHIMA", count: 6 },
-    { key: "hfma", name: "HFMA", count: 1 },
+    { key: "aapc", name: "AAPC", count: 36 },
+    { key: "ahima", name: "AHIMA", count: 9 },
+    { key: "hfma", name: "HFMA", count: 11 },
   ],
   au: [
-    { key: "himaa", name: "HIMAA", count: 9 },
+    { key: "himaa", name: "HIMAA", count: 14 },
     { key: "ihacpa", name: "IHACPA", count: 3 },
-    { key: "aapc", name: "AAPC", count: 6 },
-    { key: "ahima", name: "AHIMA", count: 4 },
+    { key: "aapc", name: "AAPC", count: 36 },
+    { key: "ahima", name: "AHIMA", count: 9 },
   ],
   nz: [
-    { key: "himaa", name: "HIMAA", count: 7 },
+    { key: "himaa", name: "HIMAA", count: 14 },
   ],
   ca: [
     { key: "chima", name: "CHIMA / CCHIM", count: 7 },
-    { key: "aapc", name: "AAPC", count: 6 },
-    { key: "ahima", name: "AHIMA", count: 4 },
+    { key: "aapc", name: "AAPC", count: 36 },
+    { key: "ahima", name: "AHIMA", count: 9 },
   ],
   uk: [
     { key: "ihrim", name: "IHRIM / NHS", count: 7 },
-    { key: "aapc", name: "AAPC", count: 4 },
-    { key: "ahima", name: "AHIMA", count: 4 },
+    { key: "aapc", name: "AAPC", count: 36 },
+    { key: "ahima", name: "AHIMA", count: 9 },
   ],
   my: [
-    { key: "aapc", name: "AAPC", count: 32 },
-    { key: "ahima", name: "AHIMA", count: 5 },
-    { key: "hfma", name: "HFMA", count: 3 },
+    { key: "aapc", name: "AAPC", count: 36 },
+    { key: "ahima", name: "AHIMA", count: 9 },
+    { key: "hfma", name: "HFMA", count: 11 },
   ],
   sg: [
-    { key: "aapc", name: "AAPC", count: 5 },
-    { key: "ahima", name: "AHIMA", count: 5 },
-    { key: "hfma", name: "HFMA", count: 3 },
+    { key: "aapc", name: "AAPC", count: 36 },
+    { key: "ahima", name: "AHIMA", count: 9 },
+    { key: "hfma", name: "HFMA", count: 11 },
     { key: "moh_himaa", name: "Local / MOH + HIMAA", count: 4 },
   ],
   za: [
-    { key: "aapc", name: "AAPC", count: 3 },
-    { key: "ahima", name: "AHIMA", count: 2 },
-    { key: "hfma", name: "HFMA", count: 1 },
+    { key: "aapc", name: "AAPC", count: 36 },
+    { key: "ahima", name: "AHIMA", count: 9 },
+    { key: "hfma", name: "HFMA", count: 11 },
     { key: "saqa", name: "SAQA / Colleges", count: 1 },
-    { key: "himaa", name: "HIMAA", count: 3 },
+    { key: "himaa", name: "HIMAA", count: 14 },
   ],
   de: [
     { key: "ihk", name: "IHK", count: 1 },
@@ -120,12 +120,12 @@ const BODIES_BY_REGION = {
     { key: "aapc_sbais", name: "AAPC + SBAIS", count: 1 },
   ],
   mx: [
-    { key: "aapc", name: "AAPC", count: 32 },
-    { key: "ahima", name: "AHIMA", count: 3 },
+    { key: "aapc", name: "AAPC", count: 36 },
+    { key: "ahima", name: "AHIMA", count: 9 },
   ],
   ng: [
-    { key: "aapc", name: "AAPC", count: 32 },
-    { key: "ahima", name: "AHIMA", count: 3 },
+    { key: "aapc", name: "AAPC", count: 36 },
+    { key: "ahima", name: "AHIMA", count: 9 },
   ],
   th: [
     { key: "thcc", name: "Thai Health Coding Centre / MOPH", count: 1 },
@@ -143,10 +143,10 @@ const BODIES_BY_REGION = {
     { key: "kiwa", name: "Kiwa / Zorginfostraat / Amstelacademie", count: 2 },
   ],
   ch: [
-    { key: "hospital_nat", name: "Hospital / National system", count: 2 },
+    { key: "hospital_nat", name: "Hospital / National system", count: 4 },
   ],
   at: [
-    { key: "hospital_nat", name: "Hospital / National system", count: 2 },
+    { key: "hospital_nat", name: "Hospital / National system", count: 4 },
   ],
 };
 
@@ -358,6 +358,8 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
   }, [existingData]);
 
   const [certStack, setCertStack] = useState(initialCertStack);
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [isAddingNew, setIsAddingNew] = useState(false);
 
   // Sync state if existingData updates from server
   React.useEffect(() => {
@@ -430,9 +432,6 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
     const isCertified = status === "certified";
     const isPursuing = status === "pursuing";
     const isNonCert = status === "non-certified";
-    // "NON-CERT" is only ever a status sentinel (written below when isNonCert) - it must never be used
-    // as a real certification code, even if it's still lingering in `selectedCertCode` from an earlier
-    // Non-Certified save that hasn't been re-picked yet.
     const safeSelectedCertCode = selectedCertCode === "NON-CERT" ? (bodyData?.certs?.[0]?.code || "CPC") : selectedCertCode;
 
     const formattedIssue = issueYear ? (issueMonth ? `${issueMonth}/${issueYear}` : issueYear) : "";
@@ -441,15 +440,16 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
     const formattedExam = expectedExamYear ? (expectedExamMonth ? `${expectedExamMonth}/${expectedExamYear}` : expectedExamYear) : "";
 
     const activeStack = customStack !== null ? customStack : certStack;
+    let finalStack = Array.isArray(activeStack) ? [...activeStack] : [];
 
-    let finalStack = activeStack;
-    if (isCertified && finalStack.length === 0 && (memberId.trim() || safeSelectedCertCode)) {
-      const isReal = verificationResult ? verificationResult.isReal : null;
-      const verdict = verificationResult ? verificationResult.verdict : "NEEDS_AUDIT";
-      const statusText = verdict === "REAL" ? "Real · Verified" : (verdict === "FAKE" ? "Fake · Invalid" : "Pending Review");
-      const badgeClass = verdict === "REAL" ? "green" : (verdict === "FAKE" ? "red" : "blue");
-      finalStack = [
-        {
+    if (isCertified) {
+      if (editingIndex !== null && editingIndex >= 0 && editingIndex < finalStack.length && memberId.trim()) {
+        const isReal = verificationResult ? verificationResult.isReal : finalStack[editingIndex].isReal;
+        const verdict = verificationResult ? verificationResult.verdict : (isReal === true ? "REAL" : (isReal === false ? "FAKE" : "NEEDS_AUDIT"));
+        const statusText = verdict === "REAL" ? "Real · Verified" : (verdict === "FAKE" ? "Fake · Invalid" : "Pending Review");
+        const badgeClass = verdict === "REAL" ? "green" : (verdict === "FAKE" ? "red" : "yellow");
+        finalStack[editingIndex] = {
+          ...finalStack[editingIndex],
           code: safeSelectedCertCode,
           name: activeCertDetail.name,
           body: bodyData.name || "AAPC",
@@ -464,13 +464,68 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
           certUrl: certUrl.trim(),
           percentage: certPercentage !== "" ? Number(certPercentage) : null,
           isReal,
-          trustScore: verificationResult?.trustScore || 70,
+          trustScore: verificationResult?.trustScore || finalStack[editingIndex].trustScore || 70,
           verificationResult,
           status: statusText,
           badgeClass,
-          logoClass: selectedCertCode === "CPC" ? "blue" : selectedCertCode === "CDC" ? "purple" : "",
-        },
-      ];
+          logoClass: safeSelectedCertCode === "CPC" ? "blue" : safeSelectedCertCode === "CDC" ? "purple" : "",
+        };
+      } else if (memberId.trim()) {
+        const alreadyIn = finalStack.some(
+          (c) => c.code === safeSelectedCertCode && String(c.memberId || "").trim().toLowerCase() === memberId.trim().toLowerCase()
+        );
+        if (!alreadyIn) {
+          const isReal = verificationResult ? verificationResult.isReal : null;
+          const verdict = verificationResult ? verificationResult.verdict : "NEEDS_AUDIT";
+          const statusText = verdict === "REAL" ? "Real · Verified" : (verdict === "FAKE" ? "Fake · Invalid" : "Pending Review");
+          const badgeClass = verdict === "REAL" ? "green" : (verdict === "FAKE" ? "red" : "yellow");
+          finalStack.push({
+            code: safeSelectedCertCode,
+            name: activeCertDetail.name,
+            body: bodyData.name || "AAPC",
+            region: selectedRegion.toUpperCase(),
+            issueMonth,
+            issueYear,
+            issueDate: formattedIssue,
+            expiryMonth,
+            expiryYear,
+            expiryDate: formattedExpiry,
+            memberId: memberId.trim(),
+            certUrl: certUrl.trim(),
+            percentage: certPercentage !== "" ? Number(certPercentage) : null,
+            isReal,
+            trustScore: verificationResult?.trustScore || 70,
+            verificationResult,
+            status: statusText,
+            badgeClass,
+            logoClass: safeSelectedCertCode === "CPC" ? "blue" : safeSelectedCertCode === "CDC" ? "purple" : "",
+          });
+        }
+      } else if (finalStack.length === 0 && safeSelectedCertCode) {
+        finalStack = [
+          {
+            code: safeSelectedCertCode,
+            name: activeCertDetail.name,
+            body: bodyData.name || "AAPC",
+            region: selectedRegion.toUpperCase(),
+            issueMonth,
+            issueYear,
+            issueDate: formattedIssue,
+            expiryMonth,
+            expiryYear,
+            expiryDate: formattedExpiry,
+            memberId: memberId.trim(),
+            certUrl: certUrl.trim(),
+            percentage: certPercentage !== "" ? Number(certPercentage) : null,
+            isReal: verificationResult ? verificationResult.isReal : null,
+            trustScore: verificationResult?.trustScore || 70,
+            verificationResult,
+            status: "Pending Review",
+            badgeClass: "yellow",
+            logoClass: safeSelectedCertCode === "CPC" ? "blue" : "",
+          },
+        ];
+      }
     }
 
     return {
@@ -488,11 +543,11 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
       verificationResult: verificationResult || (finalStack[0]?.verificationResult) || null,
       isReal: verificationResult ? verificationResult.isReal : (finalStack[0]?.isReal !== undefined ? finalStack[0].isReal : null),
       trustScore: verificationResult ? verificationResult.trustScore : (finalStack[0]?.trustScore !== undefined ? finalStack[0].trustScore : null),
-      issueMonth,
-      issueYear,
+      issueMonth: isCertified ? (finalStack[0]?.issueMonth || issueMonth) : issueMonth,
+      issueYear: isCertified ? (finalStack[0]?.issueYear || issueYear) : issueYear,
       issueDate: isCertified ? (finalStack[0]?.issueDate || formattedIssue) : "",
-      expiryMonth,
-      expiryYear,
+      expiryMonth: isCertified ? (finalStack[0]?.expiryMonth || expiryMonth) : expiryMonth,
+      expiryYear: isCertified ? (finalStack[0]?.expiryYear || expiryYear) : expiryYear,
       expiryDate: isCertified ? (finalStack[0]?.expiryDate || formattedExpiry) : "",
       certPercentage: isCertified ? (finalStack[0]?.percentage ?? (certPercentage !== "" ? Number(certPercentage) : null)) : null,
       isActive,
@@ -548,17 +603,81 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
     }
   }
 
-  async function handleAddCertToStack() {
+  // Reset form inputs for adding a fresh certificate
+  function resetCertForm(suggestNext = true) {
+    setMemberId("");
+    setCertUrl("");
+    setCertPercentage("");
+    setVerificationResult(null);
+    setVerifyError("");
+    setEditingIndex(null);
+    setIsAddingNew(true);
+    setIssueMonth("");
+    setIssueYear("");
+    setExpiryMonth("");
+    setExpiryYear("");
+    if (suggestNext) {
+      const remaining = (bodyData?.certs || []).filter((c) => !certStack.some((s) => s.code === c.code));
+      if (remaining.length > 0) {
+        setSelectedCertCode(remaining[0].code);
+      }
+    }
+  }
+
+  function handleEditCert(index) {
+    const item = certStack[index];
+    if (!item) return;
+    setEditingIndex(index);
+    setIsAddingNew(false);
+
+    if (item.region) {
+      setSelectedRegion(item.region.toLowerCase());
+    }
+    if (item.body) {
+      const foundEntry = Object.entries(CERT_LIBRARY).find(
+        ([k, v]) => v.name?.toLowerCase() === item.body?.toLowerCase() || k.toLowerCase() === item.body?.toLowerCase()
+      );
+      if (foundEntry) {
+        setSelectedBodyKey(foundEntry[0]);
+      }
+    }
+    setSelectedCertCode(item.code || "CPC");
+    setMemberId(item.memberId || "");
+    setCertUrl(item.certUrl || "");
+    setIssueMonth(item.issueMonth || (item.issueDate?.includes("/") ? item.issueDate.split("/")[0] : ""));
+    setIssueYear(item.issueYear || (item.issueDate?.includes("/") ? item.issueDate.split("/")[1] : item.issueDate || ""));
+    setExpiryMonth(item.expiryMonth || (item.expiryDate?.includes("/") ? item.expiryDate.split("/")[0] : ""));
+    setExpiryYear(item.expiryYear || (item.expiryDate?.includes("/") ? item.expiryDate.split("/")[1] : item.expiryDate || ""));
+    setCertPercentage(item.percentage !== null && item.percentage !== undefined ? String(item.percentage) : "");
+    setVerificationResult(item.verificationResult || null);
+    setVerifyError("");
+
+    toast(`Loaded ${item.code} for editing. Update fields and click "Update Certification".`, "i");
+    document.getElementById("cert-input-section")?.scrollIntoView({ behavior: "smooth" });
+  }
+
+  function handleCancelEdit() {
+    resetCertForm(true);
+    setIsAddingNew(false);
+    toast("Edit cancelled.", "i");
+  }
+
+  async function handleSaveCertToStack() {
     if (!memberId.trim()) {
+      setFormErrors({ memberId: "Please enter your Member / Cert ID first." });
       toast("Please enter your Member / Cert ID first.", "!");
+      document.getElementById("cert-member-id-field")?.scrollIntoView({ behavior: "smooth" });
       return;
     }
+    setFormErrors({});
+
     const formattedIssue = issueYear ? (issueMonth ? `${issueMonth}/${issueYear}` : issueYear) : "";
     const formattedExpiry = expiryYear ? (expiryMonth ? `${expiryMonth}/${expiryYear}` : expiryYear) : "";
     const isReal = verificationResult ? verificationResult.isReal : null;
     const verdict = verificationResult ? verificationResult.verdict : "NEEDS_AUDIT";
     const statusText = verdict === "REAL" ? "Real · Verified" : (verdict === "FAKE" ? "Fake · Invalid" : "Pending Review");
     const badgeClass = verdict === "REAL" ? "green" : (verdict === "FAKE" ? "red" : "yellow");
+
     const newCertObj = {
       code: selectedCertCode,
       name: activeCertDetail.name,
@@ -574,35 +693,73 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
       certUrl: certUrl.trim(),
       percentage: certPercentage !== "" ? Number(certPercentage) : null,
       isReal,
-      trustScore: verificationResult?.trustScore || 70,
+      trustScore: verificationResult?.trustScore || (isReal ? 98 : 70),
       verificationResult,
       status: statusText,
       badgeClass,
       logoClass: selectedCertCode === "CPC" ? "blue" : selectedCertCode === "CDC" ? "purple" : "",
     };
 
-    const nextStack = [...certStack.filter((c) => !(c.code === selectedCertCode && c.memberId === memberId.trim())), newCertObj];
+    let nextStack;
+    if (editingIndex !== null && editingIndex >= 0 && editingIndex < certStack.length) {
+      nextStack = [...certStack];
+      nextStack[editingIndex] = newCertObj;
+    } else {
+      const existingIdx = certStack.findIndex(
+        (c) => c.code === selectedCertCode && String(c.memberId || "").trim().toLowerCase() === memberId.trim().toLowerCase()
+      );
+      if (existingIdx >= 0) {
+        nextStack = [...certStack];
+        nextStack[existingIdx] = newCertObj;
+      } else {
+        nextStack = [...certStack, newCertObj];
+      }
+    }
     setCertStack(nextStack);
 
-    // Save directly to the database immediately
     try {
       const payload = buildPayload(true, nextStack);
       const res = await api.put("/candidate/stage/3", payload);
-      toast(`✓ Added and saved ${selectedCertCode} to your profile!`, "✓");
+      toast(`✓ Saved ${selectedCertCode} to profile! (${nextStack.length} cert${nextStack.length > 1 ? "s" : ""} added)`, "✓");
       if (onSaved) onSaved(res.data, { advance: false });
     } catch (err) {
       console.warn("Auto-save on cert add fallback:", err);
-      toast(`Added ${selectedCertCode} to stack.`, "✓");
+      toast(`Saved ${selectedCertCode} to certifications.`, "✓");
     }
+
+    resetCertForm(true);
+  }
+
+  async function handleStartAddAnotherCert() {
+    if (memberId.trim()) {
+      const alreadySaved = certStack.some(
+        (c, idx) =>
+          editingIndex === idx ||
+          (c.code === selectedCertCode && String(c.memberId || "").trim().toLowerCase() === memberId.trim().toLowerCase())
+      );
+      if (!alreadySaved) {
+        await handleSaveCertToStack();
+        return;
+      }
+    }
+
+    resetCertForm(true);
+    toast("Ready! Choose your additional certification and enter details above.", "✓");
+    document.getElementById("cert-input-section")?.scrollIntoView({ behavior: "smooth" });
   }
 
   async function handleRemoveCertFromStack(indexToRemove) {
     const nextStack = certStack.filter((_, i) => i !== indexToRemove);
     setCertStack(nextStack);
+    if (editingIndex === indexToRemove) {
+      resetCertForm(true);
+    } else if (editingIndex !== null && editingIndex > indexToRemove) {
+      setEditingIndex(editingIndex - 1);
+    }
     try {
       const payload = buildPayload(true, nextStack);
       const res = await api.put("/candidate/stage/3", payload);
-      toast("Certificate removed and updated in database.", "✓");
+      toast("Certificate removed and profile updated.", "✓");
       if (onSaved) onSaved(res.data, { advance: false });
     } catch (err) {
       console.warn("Auto-save on cert remove fallback:", err);
@@ -654,7 +811,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
     try {
       const payload = buildPayload(false);
       const res = await api.put("/candidate/stage/3", payload);
-      toast("Stage 03 · Certification saved successfully! (+15 pts)", "✓");
+      toast(`Stage 03 · Certification saved successfully! (+${isExperienced ? "5 pts per cert" : "15 pts"})`, "✓");
       if (onSaved) onSaved(res.data, { advance: true, nextStage: 4 });
     } catch (err) {
       console.error(err);
@@ -1295,6 +1452,52 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
         .s3-cert-mini-badge.red { background: var(--red-soft); color: var(--red); }
         .s3-cert-mini-badge.blue { background: var(--blue-soft); color: var(--blue); }
 
+        .s3-cert-card-mini.editing {
+          border-color: #3B82F6 !important;
+          background: #EFF6FF !important;
+          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+
+        .s3-cert-edit-btn {
+          background: #EEF2FF;
+          border: 1px solid #C7D2FE;
+          color: #3730A3;
+          padding: 5px 10px;
+          border-radius: 6px;
+          font-size: 11.5px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: 0.15s;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+        .s3-cert-edit-btn:hover {
+          background: #E0E7FF;
+        }
+
+        .s3-mode-banner {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 10px 14px;
+          border-radius: 10px;
+          font-size: 12.5px;
+          margin-bottom: 14px;
+          font-weight: 600;
+        }
+        .s3-mode-banner.editing {
+          background: #EFF6FF;
+          border: 1.5px solid #60A5FA;
+          color: #1E40AF;
+        }
+        .s3-mode-banner.adding {
+          background: #F0FDF4;
+          border: 1.5px solid #86EFAC;
+          color: #166534;
+        }
+
         .s3-add-cert-btn {
           background: transparent;
           color: var(--gold-deep);
@@ -1849,12 +2052,41 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
 
           {/* SECTION 2 · YOUR CERTIFICATIONS (Visible if certified) */}
           {status === "certified" && (
-            <div className="s3-section">
+            <div className="s3-section" id="cert-input-section">
               <div className="s3-section-header">
                 <div className="s3-section-num">2</div>
                 <div className="s3-section-title">Your Certifications</div>
-                <div className="s3-status-chip active">IN PROGRESS · +15</div>
+                <div className="s3-status-chip active">
+                  {isExperienced ? "OPTION A · 5 PTS / CERT (MAX 20)" : "IN PROGRESS · +15"}
+                </div>
               </div>
+
+              {/* Add / Edit Mode Banner */}
+              {editingIndex !== null ? (
+                <div className="s3-mode-banner editing">
+                  <div>
+                    <i className="fa-solid fa-pen-to-square" style={{ marginRight: 6 }} />
+                    Editing <strong>{selectedCertCode}</strong> ({activeCertDetail.name}) — Member ID: <b>{memberId || "—"}</b>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    style={{ background: "transparent", border: "none", color: "#1E40AF", textDecoration: "underline", cursor: "pointer", fontWeight: 700, fontSize: 12 }}
+                  >
+                    Cancel &amp; Add New
+                  </button>
+                </div>
+              ) : isAddingNew ? (
+                <div className="s3-mode-banner adding">
+                  <div>
+                    <i className="fa-solid fa-circle-plus" style={{ marginRight: 6 }} />
+                    Adding Credential #{certStack.length + 1}: Select your credential and enter Member ID below.
+                  </div>
+                  <span style={{ fontSize: 11.5, color: "#166534" }}>
+                    {isExperienced ? "+5 pts upon save" : "Will be added to profile"}
+                  </span>
+                </div>
+              ) : null}
 
               {/* Region Cascade */}
               <div className="s3-field" style={{ position: "relative" }}>
@@ -1927,21 +2159,39 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                 <label>Step 2 · Issuing Body <span className="req">*</span></label>
                 <div className="s3-helper" style={{ marginBottom: 8 }}>Filtered by your region.</div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {availableBodies.map((b) => (
-                    <span
-                      key={b.key}
-                      className={`s3-body-pill ${selectedBodyKey === b.key ? "selected" : ""}`}
-                      onClick={() => handleBodySelect(b.key)}
-                    >
-                      {b.name} <span className="count">{b.count}</span>
-                    </span>
-                  ))}
+                  {availableBodies.map((b) => {
+                    const count = CERT_LIBRARY[b.key]?.certs?.length ?? b.count ?? 0;
+                    return (
+                      <span
+                        key={b.key}
+                        className={`s3-body-pill ${selectedBodyKey === b.key ? "selected" : ""}`}
+                        onClick={() => handleBodySelect(b.key)}
+                      >
+                        {b.name} <span className="count">{count}</span>
+                      </span>
+                    );
+                  })}
                 </div>
               </div>
 
               {/* Cert Dropdown & Interactive Card */}
               <div className="s3-field">
-                <label>Step 3 · Pick your certification <span className="req">*</span></label>
+                <label>
+                  Step 3 · Pick your certification{" "}
+                  <span style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "var(--navy, #0F1B3D)",
+                    background: "rgba(245,180,26,0.22)",
+                    border: "1px solid rgba(245,180,26,0.55)",
+                    padding: "2px 8px",
+                    borderRadius: 10,
+                    marginLeft: 6,
+                  }}>
+                    {filteredCerts.length} available
+                  </span>{" "}
+                  <span className="req">*</span>
+                </label>
                 <input
                   type="text"
                   placeholder="Search certifications by code or name..."
@@ -1968,7 +2218,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
 
               {/* Member ID and Verification URL */}
               <div className="s3-row">
-                <div className={`s3-field ${formErrors.memberId ? "has-error" : ""}`}>
+                <div id="cert-member-id-field" className={`s3-field ${formErrors.memberId ? "has-error" : ""}`}>
                   <label>Step 4a · Member / Cert ID <span className="req">*</span></label>
                   <input
                     type="text"
@@ -2101,7 +2351,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                       ))}
                     </select>
                   </div>
-                  <div className="s3-helper">Powers renewal reminders 60 days before expiry.</div>
+                  <div className="s3-helper">Powers automated renewal reminders via Email &amp; WhatsApp 1 month before expiry.</div>
                 </div>
                 <div className="s3-field">
                   <label>Currently active? <span className="req">*</span></label>
@@ -2279,21 +2529,90 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                 </div>
               )}
 
+              {/* Save / Update Credential Primary Action Button */}
+              <div style={{ display: "flex", gap: 10, marginTop: 16, alignItems: "center", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  style={{
+                    background: editingIndex !== null ? "#2563EB" : "var(--navy)",
+                    color: "#FFFFFF",
+                    padding: "12px 22px",
+                    borderRadius: 10,
+                    fontSize: 13.5,
+                    fontWeight: 700,
+                    border: "none",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+                  }}
+                  onClick={handleSaveCertToStack}
+                >
+                  {editingIndex !== null ? (
+                    <>
+                      <i className="fa-solid fa-check" /> Update {selectedCertCode} in Profile
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa-solid fa-plus" /> Save {selectedCertCode} to Certifications ({certStack.length} added)
+                    </>
+                  )}
+                </button>
+                {editingIndex !== null && (
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    style={{
+                      padding: "11px 18px",
+                      borderRadius: 10,
+                      border: "1.5px solid #CBD5E1",
+                      background: "#FFFFFF",
+                      color: "#475569",
+                      fontWeight: 600,
+                      fontSize: 13,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Cancel Edit
+                  </button>
+                )}
+              </div>
+
               {/* Multi-Cert Stack */}
-              <div style={{ marginTop: 24 }}>
-                <label style={{ marginBottom: 10 }}>Your added certifications</label>
+              <div style={{ marginTop: 28, borderTop: "1.5px solid #F1F5F9", paddingTop: 20 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+                  <label style={{ margin: 0, fontWeight: 700, fontSize: 14, color: "var(--navy)" }}>
+                    Your added certifications ({certStack.length})
+                  </label>
+                  {isExperienced && (
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "#1E3A8A", background: "#DBEAFE", padding: "4px 12px", borderRadius: 20 }}>
+                      Option A: 5 pts each ({Math.min(certStack.length * 5, 20)} / 20 pts)
+                    </span>
+                  )}
+                </div>
+
                 {certStack.length === 0 ? (
                   <div style={{ padding: "14px 16px", background: "#F8FAFC", borderRadius: 10, border: "1px dashed #CBD5E1", fontSize: 13, color: "#64748B", marginBottom: 12 }}>
-                    No additional certifications added to stack yet. Click below to stack additional credentials.
+                    No certifications added yet. Enter your Member ID above and click "Save to Certifications".
                   </div>
                 ) : (
                   <div className="s3-cert-stack">
                     {certStack.map((item, idx) => (
-                      <div key={idx} className="s3-cert-card-mini">
+                      <div
+                        key={idx}
+                        className={`s3-cert-card-mini ${editingIndex === idx ? "editing" : ""}`}
+                        style={editingIndex === idx ? { borderColor: "#3B82F6", background: "#EFF6FF" } : {}}
+                      >
                         <div className={`s3-cert-mini-logo ${item.logoClass || ""}`}>{item.code}</div>
                         <div className="s3-cert-mini-info">
                           <div className="title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <span>{item.name}</span>
+                            {editingIndex === idx && (
+                              <span style={{ fontSize: 10.5, background: "#3B82F6", color: "#FFF", padding: "1px 7px", borderRadius: 10, fontWeight: 700 }}>
+                                Editing
+                              </span>
+                            )}
                             {item.certUrl && (
                               <a
                                 href={item.certUrl}
@@ -2311,22 +2630,37 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                         </div>
                         <div className="s3-cert-mini-id">ID ****{item.memberId ? item.memberId.slice(-4) : "—"}</div>
                         <div className={`s3-cert-mini-badge ${item.badgeClass || "green"}`}>
-                          {item.badgeClass === "green" ? <i className="fa-solid fa-circle" /> : item.badgeClass === "red" ? <i className="fa-solid fa-circle" /> : <i className="fa-solid fa-circle" />} {item.status || (item.isReal === true ? "Real · Verified" : item.isReal === false ? "Fake · Invalid" : "Pending Review")}
+                          <i className="fa-solid fa-circle" /> {item.status || (item.isReal === true ? "Real · Verified" : item.isReal === false ? "Fake · Invalid" : "Pending Review")}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveCertFromStack(idx)}
-                          style={{ background: "transparent", border: "none", color: "#EF4444", cursor: "pointer", fontWeight: 700, padding: "0 6px", fontSize: 16 }}
-                          title="Remove credential"
-                        >
-                          ×
-                        </button>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <button
+                            type="button"
+                            onClick={() => handleEditCert(idx)}
+                            className="s3-cert-edit-btn"
+                            title="Edit this credential"
+                          >
+                            ✎ Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveCertFromStack(idx)}
+                            style={{ background: "transparent", border: "none", color: "#EF4444", cursor: "pointer", fontWeight: 700, padding: "0 6px", fontSize: 18 }}
+                            title="Remove credential"
+                          >
+                            ×
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
                 )}
-                <button type="button" className="s3-add-cert-btn" onClick={handleAddCertToStack}>
-                  + Add another certification
+                <button
+                  type="button"
+                  className="s3-add-cert-btn"
+                  onClick={handleStartAddAnotherCert}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                >
+                  <i className="fa-solid fa-plus" /> Add another certification
                 </button>
               </div>
             </div>

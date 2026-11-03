@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <filter id="c500Shadow" x="-10%" y="-10%" width="125%" height="125%">
+      <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#0284C7" flood-opacity="0.18" />
+    </filter>
+  </defs>
+
+  <rect x="5" y="5" width="90" height="90" rx="22" fill="#FFFFFF" stroke="#0284C7" stroke-width="2.5" filter="url(#c500Shadow)" />
+  <rect x="7" y="7" width="86" height="86" rx="20" fill="#F0F9FF" />
+
+  <!-- Outer Ring -->
+  <circle cx="50" cy="43" r="26" fill="none" stroke="#38BDF8" stroke-width="1.8" stroke-dasharray="3 3" opacity="0.6" />
+
+  <!-- Mountain Peak on Top -->
+  <g transform="translate(50, 27)">
+    <path d="M -9 4 L -4 -2 L 1 4 Z" fill="#0284C7" opacity="0.4" />
+    <path d="M -4 4 L 2 -4 L 8 4 Z" fill="#0284C7" />
+    <circle cx="2" cy="-6" r="1.5" fill="#F59E0B" />
+  </g>
+
+  <!-- Number 500 in Center -->
+  <text x="50" y="49" text-anchor="middle" fill="#0369A1" font-family="system-ui, -apple-system, sans-serif" font-size="20" font-weight="900" letter-spacing="-0.5">500</text>
+  <text x="50" y="60" text-anchor="middle" fill="#0284C7" font-family="system-ui, -apple-system, sans-serif" font-size="8" font-weight="800" letter-spacing="1">ELITE AUDIT</text>
+
+  <!-- Bottom Tag -->
+  <rect x="18" y="72" width="64" height="15" rx="7.5" fill="#0284C7" />
+  <text x="50" y="82.5" text-anchor="middle" fill="#FFFFFF" font-family="system-ui, -apple-system, sans-serif" font-size="7.5" font-weight="900" letter-spacing="0.8">500 CLUB</text>
+</svg>

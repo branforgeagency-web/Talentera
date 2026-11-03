@@ -51,8 +51,16 @@ function scoreMatch({ jd = {}, candidate = {}, verificationScore = 0, experience
 
   // 4. Location (15)
   const city = String(s1.city || "").toLowerCase().trim();
+  const prefCities = (Array.isArray(s1.preferredCities) ? s1.preferredCities : []).map((x) => String(x || "").toLowerCase().trim()).filter(Boolean).slice(0, 5);
+  const prefIdx = jdCity ? prefCities.findIndex((pc) => jdCity.includes(pc) || pc.includes(jdCity)) : -1;
   if (remote) add("location", "Location", 15, 15, "Remote role - location does not matter");
   else if (!jdCity) add("location", "Location", 8, 15, "Job lists no location (neutral)");
+  else if (prefIdx >= 0) {
+    // Candidate's ordered "Willing to Work In" list: 1st priority city scores highest
+    const pts = [15, 14, 13, 12, 11][prefIdx] || 11;
+    const ord = ["1st", "2nd", "3rd", "4th", "5th"][prefIdx] || `${prefIdx + 1}th`;
+    add("location", "Location", pts, 15, `${jd.location} is the candidate's ${ord} priority city`);
+  }
   else if (city && (jdCity.includes(city) || city.includes(jdCity))) add("location", "Location", 15, 15, `Based in ${s1.city}`);
   else if (!city) add("location", "Location", 4, 15, "Candidate city not given");
   else add("location", "Location", 0, 15, `Based in ${s1.city}, job is in ${jd.location}`);

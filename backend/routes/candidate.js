@@ -47,6 +47,8 @@ const AcademyAssessmentResult = require("../models/AcademyAssessmentResult");
 const { gradeSubmission, recomputeCandidateAcademyScore } = require("../utils/academyAssessment");
 const { findDuplicateAadhaarAccount, duplicateAadhaarResponse } = require("../utils/aadhaarDuplicate");
 const { computeStage6Result } = require("../utils/stage6Score");
+const { isExpiringInOneMonth, dispatchRenewalReminder, checkAndSendRenewalReminders } = require("../utils/membershipRenewalReminder");
+const { getAssessmentRetakeStatus, formatRetakeType } = require("../utils/assessmentRetakePolicy");
 
 const router = express.Router();
 router.use(requireAuth); // every route below requires a valid JWT
@@ -553,8 +555,8 @@ router.put("/stage/:n", async (req, res) => {
       }
     } else if (stageNum === 4) {
       const fScore = req.body.foundationScore !== undefined ? req.body.foundationScore : req.body.score;
-      if (candidate.stage4 && candidate.stage4.foundationScore !== undefined) {
-        let isRetakeAllowed = Boolean(req.body.isRetakeApproved);
+      if (candidate.stage4 && (candidate.stage4.foundationScore !== undefined || candidate.stage4.score !== undefined)) {
+        let isRetakeAllowed = Boolean(req.body.isRetakeApproved || candidate.stage4.unlockedForRetake || req.body.isPaid);
         if (!isRetakeAllowed) {
           const approvedReq = await RetakeRequest.findOne({ candidateId: candidate._id, stage: 4, status: "APPROVED" });
           if (approvedReq) {
@@ -563,6 +565,12 @@ router.put("/stage/:n", async (req, res) => {
             await approvedReq.save();
           }
         }
+
+        // Assessment Retake Policy: 1st retake in 24h, 2nd in 48h, 3rd in 7d, after that paid retakes anytime
+        const retakePolicy = getAssessmentRetakeStatus(candidate.stage4);
+        if (retakePolicy.isUnlocked || req.body.isPaid) {
+          isRetakeAllowed = true;
+        }
         if (process.env.NODE_ENV !== "production") {
           isRetakeAllowed = true;
         }
@@ -570,16 +578,66 @@ router.put("/stage/:n", async (req, res) => {
         if (fScore === undefined || fScore === candidate.stage4.foundationScore) {
           // Allow advance without error
         } else if (!isRetakeAllowed) {
-          return res.status(400).json({ message: "Single-attempt policy: Stage 4 Assessment has already been completed and locked. Retakes require employee approval or cooldown." });
+          const waitMsg = retakePolicy.isPaid
+            ? "Attempt 5+ requires unlocking a paid retake."
+            : `Retake locked: ${retakePolicy.typeLabel} cooldown active. Unlocks in ${Math.ceil(retakePolicy.remainingMs / (1000 * 60 * 60))} hours.`;
+          return res.status(400).json({
+            message: `${waitMsg} You can submit a request for employee audit.`,
+            retakePolicy,
+          });
         }
       } else if (fScore === undefined) {
         return res.status(400).json({ message: "Stage 4 incomplete: Proctored assessment test must be completed before saving." });
       }
+
       if (fScore !== undefined) {
-        req.body.foundationScore = fScore;
-        req.body.score = fScore;
-        req.body.passed = req.body.isAutoSubmitted ? false : fScore >= 70;
-        req.body.verified = req.body.isAutoSubmitted ? false : fScore >= 70;
+        const existingAttempts = Array.isArray(candidate.stage4?.attempts) && candidate.stage4.attempts.length > 0
+          ? candidate.stage4.attempts
+          : (candidate.stage4 && (candidate.stage4.foundationScore !== undefined || candidate.stage4.score !== undefined)
+              ? [{
+                  attemptNumber: 1,
+                  score: candidate.stage4.foundationScore ?? candidate.stage4.score,
+                  medal: candidate.stage4.medal && !String(candidate.stage4.medal).toLowerCase().includes("practice") ? candidate.stage4.medal : (candidate.stage4.score >= 85 ? "Gold" : candidate.stage4.score >= 70 ? "Silver" : "Bronze"),
+                  percentile: candidate.stage4.percentile || 68,
+                  passed: candidate.stage4.passed ?? (candidate.stage4.score >= 70),
+                  completedAt: candidate.stage4.completedAt || candidate.updatedAt || new Date(),
+                  sectionScores: candidate.stage4.sectionScores || [],
+                  type: "Initial Attempt",
+                  isPaid: false,
+                }]
+              : []);
+
+        const nextAttemptNumber = existingAttempts.length + 1;
+        const attemptType = formatRetakeType(nextAttemptNumber);
+
+        const newAttemptRecord = {
+          attemptNumber: nextAttemptNumber,
+          score: fScore,
+          medal: req.body.isAutoSubmitted ? "Assessment" : (fScore >= 85 ? "Gold" : fScore >= 70 ? "Silver" : fScore >= 50 ? "Bronze" : "Assessment"),
+          percentile: req.body.percentile || 68,
+          passed: req.body.isAutoSubmitted ? false : fScore >= 70,
+          completedAt: new Date(),
+          sectionScores: req.body.sectionScores || [],
+          submissionReason: req.body.submissionReason || (req.body.isAutoSubmitted ? req.body.autoSubmitReason : "Normal Submission"),
+          type: attemptType,
+          isPaid: nextAttemptNumber >= 5,
+        };
+
+        const updatedAttempts = [...existingAttempts, newAttemptRecord];
+        const highestScore = Math.max(...updatedAttempts.map((a) => Number(a.score) || 0));
+
+        req.body.attempts = updatedAttempts;
+        req.body.attemptNumber = nextAttemptNumber;
+        req.body.retakeCount = updatedAttempts.length - 1;
+        req.body.totalAttempts = updatedAttempts.length;
+        req.body.highestScore = highestScore;
+        req.body.latestAttemptScore = fScore;
+        req.body.lastAttemptAt = new Date();
+        req.body.foundationScore = highestScore; // Best score wins on candidate verified profile
+        req.body.score = highestScore;
+        req.body.passed = req.body.isAutoSubmitted ? false : highestScore >= 70;
+        req.body.verified = req.body.isAutoSubmitted ? false : highestScore >= 70;
+        req.body.medal = highestScore >= 85 ? "Gold" : highestScore >= 70 ? "Silver" : highestScore >= 50 ? "Bronze" : "Assessment";
       }
 
       // Any attempt completion/submission consumes any prior approved retake request
@@ -588,6 +646,7 @@ router.put("/stage/:n", async (req, res) => {
         { $set: { status: "COMPLETED", completedAt: new Date() } }
       );
       req.body.isRetakeApproved = false;
+      req.body.unlockedForRetake = false;
       if (!req.body.isAutoSubmitted) {
         req.body.autoSubmitReason = null;
       }
@@ -683,10 +742,31 @@ router.put("/stage/:n", async (req, res) => {
       candidate.stage3.memberId = req.body.memberId || firstCert.memberId || "";
       candidate.stage3.issueDate = req.body.issueDate || firstCert.issueDate || (firstCert.issueYear ? `${firstCert.issueMonth ? firstCert.issueMonth + "/" : ""}${firstCert.issueYear}` : "");
       candidate.stage3.expiryDate = req.body.expiryDate || firstCert.expiryDate || (firstCert.expiryYear ? `${firstCert.expiryMonth ? firstCert.expiryMonth + "/" : ""}${firstCert.expiryYear}` : "");
+      candidate.stage3.expiryMonth = req.body.expiryMonth || firstCert.expiryMonth || candidate.stage3.expiryMonth || "";
+      candidate.stage3.expiryYear = req.body.expiryYear || firstCert.expiryYear || candidate.stage3.expiryYear || "";
+      candidate.stage3.issueMonth = req.body.issueMonth || firstCert.issueMonth || candidate.stage3.issueMonth || "";
+      candidate.stage3.issueYear = req.body.issueYear || firstCert.issueYear || candidate.stage3.issueYear || "";
       candidate.stage3.certUrl = req.body.certUrl || firstCert.certUrl || "";
       candidate.stage3.verificationResult = req.body.verificationResult || firstCert.verificationResult || candidate.stage3.verificationResult || null;
       candidate.stage3.isReal = req.body.isReal !== undefined ? req.body.isReal : (firstCert.isReal !== undefined ? firstCert.isReal : candidate.stage3.isReal);
       candidate.stage3.trustScore = req.body.trustScore !== undefined ? req.body.trustScore : (firstCert.trustScore !== undefined ? firstCert.trustScore : candidate.stage3.trustScore);
+
+      // Automated AAPC 1-Month Renewal Check: If certificate expires in 1 month, dispatch notification
+      if (candidate.stage3.expiryMonth && candidate.stage3.expiryYear && isExpiringInOneMonth(candidate.stage3.expiryMonth, candidate.stage3.expiryYear)) {
+        const cycleKey = `${candidate.stage3.certCode || "CPC"}_${String(candidate.stage3.expiryMonth).padStart(2, "0")}_${candidate.stage3.expiryYear}`;
+        const sentCycles = candidate.stage3.renewalReminderSentCycles || [];
+        if (!sentCycles.includes(cycleKey)) {
+          dispatchRenewalReminder(candidate, {
+            certName: candidate.stage3.certName,
+            certCode: candidate.stage3.certCode,
+            memberId: candidate.stage3.memberId,
+            expiryMonth: candidate.stage3.expiryMonth,
+            expiryYear: candidate.stage3.expiryYear,
+          }).catch((err) => logger.warn(`On-save renewal reminder dispatch failed: ${err.message}`));
+          candidate.stage3.renewalReminderSentCycles = [...sentCycles, cycleKey];
+          candidate.stage3.renewalReminderSentAt = new Date();
+        }
+      }
 
       candidate.markModified("stage3");
 
@@ -794,6 +874,7 @@ router.put("/stage/:n", async (req, res) => {
       candidate.stage4.passed = fScore >= 70;
       candidate.stage4.verified = fScore >= 70;
       candidate.stage4.medal = candidate.stage4.medal && !String(candidate.stage4.medal).toLowerCase().includes("practice") ? candidate.stage4.medal : (fScore >= 85 ? "Gold" : fScore >= 70 ? "Silver" : fScore >= 50 ? "Bronze" : "Assessment");
+      candidate.stage4.skipped = false;
       candidate.stage4.completedAt = candidate.stage4.completedAt || new Date();
     } else if (stageNum === 5) {
       const selfIntroScore = typeof req.body.aiScore === "number" ? req.body.aiScore : (typeof candidate.stage5?.aiScore === "number" ? candidate.stage5.aiScore : null);
@@ -829,6 +910,7 @@ router.put("/stage/:n", async (req, res) => {
       if (calculatedScore !== null) {
         candidate.stage5.completedAt = candidate.stage5.completedAt || new Date();
         candidate.stage5.status = "completed";
+        candidate.stage5.skipped = false;
       }
       candidate.stage5.videoUrl = req.body.videoUrl || req.body.introVideoUrl || candidate.stage5.videoUrl || "";
       candidate.stage5.introVideoUrl = req.body.introVideoUrl || req.body.videoUrl || candidate.stage5.introVideoUrl || "";
@@ -962,6 +1044,7 @@ router.put("/stage/:n", async (req, res) => {
         isOptional: isSelfTrainedCandidate(candidate) || isLiveChartExemptDomain(candidate),
         verified,
         verificationMethod: (evidencePath === "D" && isLiveChartExemptDomain(candidate)) ? "Not Required (Role)" : (evidencePath === "D" && isSelfTrainedCandidate(candidate)) ? "Optional (Self-Trained)" : verificationMethod,
+        skipped: (evidencePath === "D" && Number(totalCharts || 0) === 0) ? Boolean(candidate.stage6?.skipped) : false,
         completedAt: candidate.stage6?.completedAt || new Date(),
       };
 
@@ -2588,14 +2671,11 @@ router.post("/apply/:jobId", async (req, res) => {
   const candidate = await Candidate.findById(req.candidateId);
   if (!candidate) return res.status(404).json({ message: "Candidate not found." });
 
-  // Job search / apply eligibility gate. Stage 4 (Talentera Assessment) is
-  // called out in models/Candidate.js as "mandatory, key verification gate",
-  // but the overall verification score alone doesn't actually enforce that -
-  // a candidate could reach 75%+ purely from stages 1/2/3/5/6 and apply (and
-  // even get hired) without ever sitting the Assessment. Require it
-  // explicitly, on top of the score check, so that can't happen.
-  // Mirrors the check in frontend/src/pages/Jobs.jsx.
-  if (!candidate.completedStages?.includes(4)) {
+  // Job search / apply eligibility gate. For freshers, Stage 4 (Talentera Assessment)
+  // is mandatory; experienced candidates are exempt from Stage 4 (their score comes from
+  // verified work experience, certifications, and live charts).
+  const isExp = isExperiencedCandidate(candidate);
+  if (!isExp && !candidate.completedStages?.includes(4)) {
     return res.status(403).json({
       message: "Job applications require your Talentera Assessment (Stage 4) to be completed first. Finish it in your dashboard to unlock job search.",
     });
@@ -3259,10 +3339,46 @@ router.get("/retake-request", async (req, res) => {
       }
     }
 
-    res.json({ request: latestRequest || null });
+    const retakePolicy = stageNum === 4 ? getAssessmentRetakeStatus(candidate?.stage4 || {}) : null;
+
+    res.json({
+      request: latestRequest || null,
+      retakePolicy,
+    });
   } catch (err) {
     logger.error(`Get retake request error: ${err.message}`);
     res.status(500).json({ message: "Failed to fetch retake request status." });
+  }
+});
+
+// POST /api/candidate/stage/4/unlock-paid-retake - Unlocks paid retake (attempt 5+)
+router.post("/stage/4/unlock-paid-retake", async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate profile not found." });
+
+    const s4 = candidate.stage4 || {};
+    const retakePolicy = getAssessmentRetakeStatus(s4);
+    if (!retakePolicy.isPaid) {
+      return res.status(400).json({ message: "Paid retakes are only applicable starting from Attempt 5+." });
+    }
+
+    candidate.stage4 = {
+      ...s4,
+      unlockedForRetake: true,
+      paidRetakeUnlockedAt: new Date(),
+    };
+    candidate.markModified("stage4");
+    await candidate.save();
+
+    res.json({
+      success: true,
+      message: "Paid retake unlocked! You can now take your assessment anytime.",
+      retakePolicy: getAssessmentRetakeStatus(candidate.stage4),
+    });
+  } catch (err) {
+    logger.error(`Unlock paid retake error: ${err.message}`);
+    res.status(500).json({ message: "Failed to unlock paid retake." });
   }
 });
 
@@ -3703,6 +3819,27 @@ router.get("/referrals/leaderboard", async (req, res) => {
 });
 
 // GET /api/candidate/jobs - Real database jobs & hiring analytics for Candidate Dashboard
+// GET/PUT /api/candidate/update-preferences - Email / WhatsApp career-update opt-in
+router.get("/update-preferences", async (req, res) => {
+  try {
+    const c = await Candidate.findById(req.candidateId).select("updatesEmail updatesWhatsapp").lean();
+    res.json({ email: c?.updatesEmail !== false, whatsapp: c?.updatesWhatsapp !== false });
+  } catch (err) {
+    res.status(500).json({ message: "Could not load preferences." });
+  }
+});
+router.put("/update-preferences", async (req, res) => {
+  try {
+    const set = {};
+    if (typeof req.body.email === "boolean") set.updatesEmail = req.body.email;
+    if (typeof req.body.whatsapp === "boolean") set.updatesWhatsapp = req.body.whatsapp;
+    const c = await Candidate.findByIdAndUpdate(req.candidateId, { $set: set }, { new: true }).select("updatesEmail updatesWhatsapp").lean();
+    res.json({ email: c?.updatesEmail !== false, whatsapp: c?.updatesWhatsapp !== false });
+  } catch (err) {
+    res.status(500).json({ message: "Could not save preferences." });
+  }
+});
+
 router.get("/jobs", async (req, res) => {
   try {
     const candidate = await Candidate.findById(req.candidateId).lean();
@@ -3711,6 +3848,18 @@ router.get("/jobs", async (req, res) => {
     const candidateCerts = (candidate?.stage3?.certifications || []).map(c => (c.code || c.certCode || "").toUpperCase());
     if (candidate?.stage3?.certCode) candidateCerts.push(candidate.stage3.certCode.toUpperCase());
     const candidateCity = candidate?.stage1?.city || candidate?.city || "";
+    // Ordered "Willing to Work In" list: index 0 = 1st priority city
+    const preferredCityList = (Array.isArray(candidate?.stage1?.preferredCities) ? candidate.stage1.preferredCities : [])
+      .map((c) => String(c || "").trim().toLowerCase())
+      .filter(Boolean)
+      .slice(0, 5);
+    // 1-based priority of a job location (null when it is not one of the preferred cities)
+    const cityPriorityOf = (loc) => {
+      const l = String(loc || "").toLowerCase();
+      if (!l) return null;
+      const idx = preferredCityList.findIndex((c) => l.includes(c));
+      return idx >= 0 ? idx + 1 : null;
+    };
 
     // 1. Fetch all published jobs from Job collection
     const postedJobs = await Job.find({ published: true, approvalStatus: { $ne: "rejected" } })
@@ -3776,6 +3925,31 @@ router.get("/jobs", async (req, res) => {
       return rows;
     };
 
+    // ---- Real fit checks used by the Browse Jobs quick filters ----
+    const candExperienced = /exp/i.test(String(candidate?.stage1?.experience || ""));
+    const candSpecs = [
+      ...(Array.isArray(candidate?.stage2?.specialties) ? candidate.stage2.specialties : []),
+      candidate?.stage2?.specialty,
+      candidate?.stage2?.domain,
+    ].filter(Boolean).map((x) => String(x).toLowerCase().trim());
+    const hasCandCert = candidateCerts.filter(Boolean).length > 0;
+    const isRemoteJob = (location, workMode) =>
+      /global|remote/i.test(String(location || "")) || /remote/i.test(String(workMode || ""));
+    // Eligible (hiring level + certification rule) AND relevant (specialty overlap, preferred/home city, or remote)
+    const profileFit = (fd, location, specialty, workMode) => {
+      const level = String(fd.level || "").toLowerCase();
+      if (level.includes("fresher") && !level.includes("experienced") && candExperienced) return false;
+      if (level.includes("experienced") && !level.includes("fresher") && !candExperienced) return false;
+      const certs = (Array.isArray(fd.certs) ? fd.certs : fd.certs ? [fd.certs] : []).map(String);
+      const specific = certs.filter((c) => c !== "Non-Certified");
+      if (specific.length && !certs.includes("Non-Certified") && !hasCandCert) return false;
+      const tokens = String(specialty || "").toLowerCase().split("/").map((t) => t.trim()).filter(Boolean);
+      const specMatch = candSpecs.some((cs) => tokens.some((t) => t.includes(cs) || cs.includes(t)));
+      const locLower = String(location || "").toLowerCase();
+      const locMatch = Boolean(cityPriorityOf(location)) || (candidateCity && locLower.includes(candidateCity.toLowerCase())) || isRemoteJob(location, workMode);
+      return Boolean(specMatch || locMatch);
+    };
+
     // Process posted jobs
     for (const j of postedJobs) {
       if (!j.jobId || seenJobIds.has(j.jobId)) continue;
@@ -3794,8 +3968,10 @@ router.get("/jobs", async (req, res) => {
       let matchScore = 80;
       if (candidateCerts.some(c => (f.certs || []).includes(c) || specialty.toUpperCase().includes(c))) matchScore += 12;
       if (candidateCity && location.toLowerCase().includes(candidateCity.toLowerCase())) matchScore += 8;
+      const cityPriority = cityPriorityOf(location);
+      if (cityPriority) matchScore += Math.max(0, 7 - cityPriority);
       matchScore = Math.min(99, matchScore);
-      const isProfileMatch = matchScore >= 85 || (candidateScore >= 75);
+      const isProfileMatch = profileFit(f, location, specialty, workMode);
 
       formattedJobs.push({
         id: j._id,
@@ -3825,12 +4001,14 @@ router.get("/jobs", async (req, res) => {
         jobDetails: buildJobDetails(f),
         publishedAt: j.createdAt || new Date().toISOString(),
         matchScore,
+        cityPriority,
         isProfileMatch,
         isTierMatch: candidateScore >= 70,
         minTierRequired: openings > 10 ? "Verified" : "Silver+",
         isWalkIn: /immediate|critical/i.test(f.urgency || ""),
-        isFeatured: openings >= 15 || matchScore >= 92,
-        isOpenToGlobal: location.toLowerCase().includes("global") || location.toLowerCase().includes("remote"),
+        isFeatured: openings >= 10,
+        isOpenToGlobal: isRemoteJob(location, workMode),
+        isEmployerVerified: company.kycStatus === "verified" || Boolean(company.kycVerifiedAt),
       });
     }
 
@@ -3850,8 +4028,10 @@ router.get("/jobs", async (req, res) => {
       let matchScore = 85;
       if (candidateCerts.some(cert => (s9.certs || []).includes(cert) || specialty.toUpperCase().includes(cert))) matchScore += 10;
       if (candidateCity && location.toLowerCase().includes(candidateCity.toLowerCase())) matchScore += 5;
+      const cityPriority = cityPriorityOf(location);
+      if (cityPriority) matchScore += Math.max(0, 6 - cityPriority);
       matchScore = Math.min(99, matchScore);
-      const isProfileMatch = matchScore >= 85 || (candidateScore >= 75);
+      const isProfileMatch = profileFit(s9, location, specialty, workMode);
 
       formattedJobs.push({
         id: c._id,
@@ -3881,20 +4061,31 @@ router.get("/jobs", async (req, res) => {
         jobDetails: buildJobDetails(s9),
         publishedAt: c.jdPublishedAt || c.updatedAt || new Date().toISOString(),
         matchScore,
+        cityPriority,
         isProfileMatch,
         isTierMatch: candidateScore >= 70,
         minTierRequired: "Silver+",
         isWalkIn: /immediate|critical/i.test(s9.urgency || ""),
-        isFeatured: true,
-        isOpenToGlobal: location.toLowerCase().includes("global") || workMode.toLowerCase() === "remote",
+        isFeatured: openings >= 10,
+        isOpenToGlobal: isRemoteJob(location, workMode),
+        isEmployerVerified: c.kycStatus === "verified" || Boolean(c.kycVerifiedAt),
       });
+    }
+
+    // Rank openings by the candidate's city priority (1st city first); jobs outside the list keep their order
+    if (preferredCityList.length) {
+      const rankOf = (j) => (j.cityPriority ? j.cityPriority : j.isOpenToGlobal ? 6 : 7);
+      formattedJobs
+        .map((j, i) => ({ j, i }))
+        .sort((x, y) => rankOf(x.j) - rankOf(y.j) || x.i - y.i)
+        .forEach((o, k) => { formattedJobs[k] = o.j; });
     }
 
     // Compute live dynamic stats purely from real database jobs
     const totalOpenings = formattedJobs.reduce((sum, j) => sum + (j.openings || 1), 0);
     const uniqueCompanies = new Set(formattedJobs.map(j => j.company).filter(Boolean)).size;
     const uniqueCities = new Set(formattedJobs.map(j => j.location).filter(Boolean)).size;
-    const matchingJobs = formattedJobs.filter(j => j.isProfileMatch || (j.matchScore && j.matchScore >= 85)).length;
+    const matchingJobs = formattedJobs.filter(j => j.isProfileMatch).length;
 
     // City Stats calculation purely from real database jobs
     const cityMap = {};
@@ -3934,6 +4125,7 @@ router.get("/jobs", async (req, res) => {
         newThisWeek: newThisWeek,
       },
       cityStats,
+      preferredCities: (candidate?.stage1?.preferredCities || []).filter(Boolean).slice(0, 5),
     });
   } catch (err) {
     logger.error(`Fetch candidate jobs error: ${err.message}`);
@@ -4146,6 +4338,17 @@ router.post("/support-ticket", async (req, res) => {
   } catch (err) {
     logger.error(`Submit support ticket error: ${err.message}`);
     res.status(500).json({ message: "Failed to submit support ticket." });
+  }
+});
+
+// POST /api/candidate/renewal-reminders/check - Check & trigger AAPC 1-month renewal reminders
+router.post("/renewal-reminders/check", async (req, res) => {
+  try {
+    const result = await checkAndSendRenewalReminders();
+    res.json({ success: true, ...result });
+  } catch (err) {
+    logger.error(`Renewal reminders trigger error: ${err.message}`);
+    res.status(500).json({ message: err.message || "Failed to run renewal reminder check." });
   }
 });
 

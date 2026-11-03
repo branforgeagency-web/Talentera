@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/client';
 import CandidateResumeSection from '../components/CandidateResumeSection.jsx';
+import BadgeLogo, { badgeLogoSrc } from '../components/BadgeLogo.jsx';
 import AcademyProfileModal from '../components/AcademyProfileModal.jsx';
 import { exportResumeWord } from '../utils/resumeExport.js';
 import SupportEnquiries from '../components/SupportEnquiries.jsx';
@@ -609,6 +610,24 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
   const visibleBadgeCriteria = badgeCriteria.filter((b) => !(b.key === 'assessment' && isExperiencedProfile(profile)));
   const badgesEarnedCount = visibleBadgeCriteria.filter((b) => b.earned).length;
 
+  // Email / WhatsApp career updates (twice a week) - real, saved preferences
+  const [updatePrefs, setUpdatePrefs] = useState({ email: true, whatsapp: true });
+  useEffect(() => {
+    if (activeTab !== 'settings') return;
+    api.get('/candidate/update-preferences').then((r) => setUpdatePrefs({ email: r.data?.email !== false, whatsapp: r.data?.whatsapp !== false })).catch(() => {});
+  }, [activeTab]);
+  const toggleUpdatePref = async (key) => {
+    const next = { ...updatePrefs, [key]: !updatePrefs[key] };
+    setUpdatePrefs(next);
+    try {
+      await api.put('/candidate/update-preferences', { [key]: next[key] });
+      triggerToast(next[key] ? 'Updates turned on.' : 'Updates turned off.');
+    } catch (e) {
+      setUpdatePrefs(updatePrefs);
+      triggerToast('Could not save your preference.');
+    }
+  };
+
   const appliedJobIds = new Set(applications.map((a) => a.jobId));
   // Keep My Companies / Applications / Offers in step with what happened in Hiring Rounds or on the company side
   const refreshApplications = useCallback(async () => {
@@ -898,14 +917,10 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
           <div className="sb-group">
             <div className="sb-group-label">STUDENT DASHBOARD</div>
             <div className="sb-nav">
-              <div data-tab="profile" className={'sb-item ' + (PROFILE_GROUP.includes(activeTab) ? 'active' : '')} onClick={() => { if (!PROFILE_GROUP.includes(activeTab)) setActiveTab('dashboard'); }}>
+              <div data-tab="profile" className={'sb-item ' + (PROFILE_GROUP.includes(activeTab) || activeTab === 'badges' ? 'active' : '')} onClick={() => { if (!PROFILE_GROUP.includes(activeTab)) setActiveTab('dashboard'); }}>
                 <span className="ico"><i className="fa-solid fa-user" /></span>
                 <span>My Profile</span>
                 <span className="badge green">{profileScore}/100</span>
-              </div>
-              <div data-tab="badges" className={'sb-item ' + (activeTab === 'badges' ? 'active' : '')} onClick={() => setActiveTab('badges')}>
-                <span className="ico"><i className="fa-solid fa-award" /></span>
-                <span>My Badges</span>
               </div>
             </div>
           </div>
@@ -1076,7 +1091,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
         <div className="qs-card" onClick={() => setActiveTab("companies")}><div className="qs-ico blue"><i className="fa-solid fa-building" /></div><div><div className="qs-val">{companiesAttendedCount}</div><div className="qs-lbl">Companies Attended</div><div className="qs-trend">{applications.length > 0 ? `${applications.length} total applications` : 'No applications yet'}</div></div></div>
         <div className="qs-card" onClick={() => setActiveTab("companies")}><div className="qs-ico green"><i className="fa-solid fa-check" /></div><div><div className="qs-val">{offersReceivedCount}</div><div className="qs-lbl">Offers Received</div><div className="qs-trend">{bestOfferCtc > 0 ? `↑ Best ₹${bestOfferCtc} LPA` : 'No offers yet'}</div></div></div>
         {!(stage6NotApplicable && chartsCoded === 0) && <div className="qs-card" onClick={() => handleOpenStagesWizard(6)}><div className="qs-ico gold"><i className="fa-solid fa-laptop" /></div><div><div className="qs-val">{chartsCoded}</div><div className="qs-lbl">Charts Coded</div><div className="qs-trend">{chartsCoded > 0 ? (profile?.stage6?.tier || 'Logged') : 'Open Stage 06'}</div></div></div>}
-        <div className="qs-card" onClick={() => setActiveTab("badges")}><div className="qs-ico purple"><i className="fa-solid fa-award" /></div><div><div className="qs-val">{badgesEarnedCount}</div><div className="qs-lbl">Badges Earned</div><div className="qs-trend">{badgesEarnedCount > 0 ? `of ${visibleBadgeCriteria.length} available` : 'Complete stages to earn'}</div></div></div>
+        <div className="qs-card" onClick={() => setActiveTab("profile")}><div className="qs-ico purple"><i className="fa-solid fa-award" /></div><div><div className="qs-val">{badgesEarnedCount}</div><div className="qs-lbl">Badges Earned</div><div className="qs-trend">{badgesEarnedCount > 0 ? `of ${visibleBadgeCriteria.length} available` : 'Complete stages to earn'}</div></div></div>
       </div>
 
       <div className="sec">
@@ -1108,7 +1123,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
     </div>
 )}
 
-          {activeTab === 'profile' && (
+          {(activeTab === 'profile' || activeTab === 'badges') && (
 <div className="page active" id="page-profile">
       <div className="page-head" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
         <div>
@@ -1145,6 +1160,154 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
           </div>
         </div>
         <button className="profile-cta" onClick={() => handleOpenStagesWizard(1)}><i className="fa-solid fa-bolt" style={{ marginRight: 6 }} />Edit All Stages</button>
+      </div>
+
+      {/* ═══════════════ MY BADGES (COMBINED INTO MY PROFILE) ═══════════════ */}
+      <div id="profile-badges-section" style={{ marginTop: 24, marginBottom: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div>
+            <h3 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--navy)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <i className="fa-solid fa-award" style={{ color: "var(--gold)" }} />
+              My Badges &amp; Visual Credibility
+            </h3>
+            <div style={{ fontSize: '12.5px', color: '#64748B', marginTop: 3 }}>
+              Earned automatically as you complete verification stages — what companies check first.
+            </div>
+          </div>
+          <span className="badge green" style={{ padding: '6px 12px', fontSize: '12px' }}>
+            {badgesEarnedCount} of {visibleBadgeCriteria.length} Earned
+          </span>
+        </div>
+
+        <div className="badge-section priority-required">
+          <div className="badge-sec-title">
+            <><i className="fa-solid fa-shield-halved" style={{ marginRight: 8, color: "var(--red)" }} />Verification Badges</>
+            <span className="badge-sec-tag">CORE STAGES</span>
+          </div>
+          <div className="badge-sec-sub">These come directly from your 8 verification stages and are what companies check first.</div>
+          <div className="badge-grid">
+            {visibleBadgeCriteria.map((b) => (
+              <div className={"badge " + (b.earned ? "earned priority" : "locked")} key={b.key}>
+                {b.earned && <div className="badge-crown"><i className="fa-solid fa-crown" /></div>}
+                {b.earned && <div className="badge-verified"><i className="fa-solid fa-check" /></div>}
+                <div className="badge-ico">
+                  <BadgeLogo
+                    src={badgeLogoSrc(b.key, {
+                      certBody: profile?.stage3?.issuingBody || profile?.stage3?.certifications?.[0]?.body,
+                      certCode: profile?.stage3?.certifications?.[0]?.code || profile?.stage3?.certCode,
+                      academyLogoUrl: profile?.stage2?.academyLogoUrl
+                    })}
+                    alt={b.label}
+                    size={46}
+                    fallback={b.icon}
+                  />
+                </div>
+                <div className="badge-name">{b.label}</div>
+                <div className="badge-sub">{b.earned ? 'Verified' : 'Not completed yet'}</div>
+                <span className={"badge-value " + (b.earned ? "" : "locked-tag")}>{b.earned ? 'Earned' : 'Locked'}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="badge-section">
+          <div className="badge-sec-title">
+            <><i className="fa-solid fa-certificate" style={{ marginRight: 8, color: "var(--gold)" }} />Certification Badges</>
+            <span className="badge-sec-tag regular">FROM STAGE 03</span>
+          </div>
+          <div className="badge-sec-sub">Every certification you've added in Stage 03, shown here automatically.</div>
+          <div className="badge-grid">
+            {(profile?.stage3?.certifications?.length > 0 ? profile.stage3.certifications : (profile?.stage3?.certCode ? [profile.stage3] : [])).map((cert, idx) => (
+              <div className="badge earned" key={cert.memberId || cert.certCode || idx}>
+                <div className="badge-verified"><i className="fa-solid fa-check" /></div>
+                <div className="badge-ico">
+                  <BadgeLogo
+                    src={badgeLogoSrc('cert', { certBody: cert.body || cert.issuingBody, certCode: cert.code || cert.certCode })}
+                    alt={cert.body || cert.issuingBody || 'AAPC'}
+                    size={46}
+                    fallback={cert.code || cert.certCode || 'CERT'}
+                  />
+                </div>
+                <div className="badge-name">{(cert.body || cert.issuingBody || 'AAPC')} {cert.code || cert.certCode}</div>
+                <div className="badge-sub">{cert.name || cert.certName || 'Certification'}</div>
+                <span className="badge-value regular">{profile?.stage3?.certStatus === 'verified' ? 'Verified' : 'Pending'}</span>
+              </div>
+            ))}
+            {!(profile?.stage3?.certifications?.length > 0) && !profile?.stage3?.certCode && (
+              <div className="badge locked" onClick={() => handleOpenStagesWizard(3)} style={{ cursor: 'pointer' }}>
+                <div className="badge-ico">
+                  <BadgeLogo src={badgeLogoSrc('cert')} alt="Certifications" size={46} fallback={<i className="fa-solid fa-certificate" />} />
+                </div>
+                <div className="badge-name">No Certifications Yet</div>
+                <div className="badge-sub">Add one in Stage 03</div>
+                <span className="badge-value locked-tag">Locked · Click to Add</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="badge-section">
+          <div className="badge-sec-title">
+            <><i className="fa-solid fa-award" style={{ marginRight: 8, color: "var(--gold)" }} />Milestone Badges</>
+            <span className="badge-sec-tag achievement">FROM LIVE CHARTS</span>
+          </div>
+          <div className="badge-sec-sub">Automatic milestones based on your logged live-chart activity.</div>
+          <div className="badge-grid">
+            <div className={"badge " + (chartsCoded >= 100 ? "earned" : "locked")}>
+              {chartsCoded >= 100 && <div className="badge-verified"><i className="fa-solid fa-check" /></div>}
+              <div className="badge-ico">
+                <BadgeLogo src={badgeLogoSrc('charts-100')} alt="100 Charts Club" size={46} fallback={<i className="fa-solid fa-check-double" />} />
+              </div>
+              <div className="badge-name">100 Charts Club</div>
+              <div className="badge-sub">{chartsCoded >= 100 ? `${chartsCoded} charts logged` : `${chartsCoded} / 100 charts logged`}</div>
+              <span className={"badge-value " + (chartsCoded >= 100 ? "regular" : "locked-tag")}>{chartsCoded >= 100 ? 'Earned' : 'Locked'}</span>
+            </div>
+            <div className={"badge " + (chartsCoded >= 500 ? "earned" : "locked")}>
+              {chartsCoded >= 500 && <div className="badge-verified"><i className="fa-solid fa-check" /></div>}
+              <div className="badge-ico">
+                <BadgeLogo src={badgeLogoSrc('charts-500')} alt="500 Charts Club" size={46} fallback={<i className="fa-solid fa-mountain" />} />
+              </div>
+              <div className="badge-name">500 Charts Club</div>
+              <div className="badge-sub">{chartsCoded >= 500 ? `${chartsCoded} charts logged` : `${chartsCoded} / 500 charts logged`}</div>
+              <span className={"badge-value " + (chartsCoded >= 500 ? "regular" : "locked-tag")}>{chartsCoded >= 500 ? 'Earned' : 'Locked'}</span>
+            </div>
+            <div className={"badge " + (profile?.stage5?.regionalLanguage ? "earned" : "locked")}>
+              {profile?.stage5?.regionalLanguage && <div className="badge-verified"><i className="fa-solid fa-check" /></div>}
+              <div className="badge-ico">
+                <BadgeLogo src={badgeLogoSrc('multilingual')} alt="Multilingual" size={46} fallback={<i className="fa-solid fa-earth-americas" />} />
+              </div>
+              <div className="badge-name">Multilingual</div>
+              <div className="badge-sub">{profile?.stage5?.regionalLanguage ? `English + ${profile.stage5.regionalLanguage}` : 'Add a regional-language video in Stage 05'}</div>
+              <span className={"badge-value " + (profile?.stage5?.regionalLanguage ? "regular" : "locked-tag")}>{profile?.stage5?.regionalLanguage ? 'Earned' : 'Locked'}</span>
+            </div>
+            {!isExperiencedProfile(profile) && (
+            <div className={"badge " + (profile?.stage4?.medal === 'Gold' ? "earned" : "locked")}>
+              {profile?.stage4?.medal === 'Gold' && <div className="badge-verified"><i className="fa-solid fa-check" /></div>}
+              <div className="badge-ico">
+                <BadgeLogo src={badgeLogoSrc('gold-assessment')} alt="Gold Assessment" size={46} fallback={<i className="fa-solid fa-medal" />} />
+              </div>
+              <div className="badge-name">Gold Assessment</div>
+              <div className="badge-sub">{profile?.stage4?.medal === 'Gold' ? 'Scored 85+ on the assessment' : 'Score 85+ to unlock'}</div>
+              <span className={"badge-value " + (profile?.stage4?.medal === 'Gold' ? "regular" : "locked-tag")}>{profile?.stage4?.medal === 'Gold' ? 'Earned' : 'Locked'}</span>
+            </div>
+            )}
+          </div>
+        </div>
+
+        {/* Unlock remaining badges banner */}
+        <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', background: 'var(--grad-hero)', color: '#FFFFFF', borderRadius: '16px', marginTop: '20px', border: '1.5px solid rgba(245, 166, 35, 0.45)', flexWrap: 'wrap', gap: '14px' }}>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: '15.5px' }}><><i className="fa-solid fa-rocket" style={{ marginRight: 8 }} />Unlock All 8 Verification Badges</></div>
+            <div style={{ fontSize: '12.5px', color: 'rgba(255, 255, 255, 0.85)', marginTop: '4px' }}>Complete or improve your scores in the candidate 7 stages verification dashboard.</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => handleOpenStagesWizard(1)}
+            className="btn-open-stages-hero"
+          >
+            <><i className="fa-solid fa-bolt" style={{ marginRight: 6 }} />Open {wizardStageTotal} Stages Dashboard</>
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '24px 0 14px' }}>
@@ -1303,130 +1466,6 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
           <div className="field"><div className="k">Work Mode</div><div className="v">{profile?.stage8?.workMode || 'Hybrid / Remote / Onsite'}</div></div>
           <div className="field"><div className="k">Preferred Cities</div><div className="v">{Array.isArray(profile?.stage8?.preferredCities) ? profile.stage8.preferredCities.join(', ') : 'All locations'}</div></div>
         </div>
-      </div>
-    </div>
-)}
-
-          {activeTab === 'badges' && (
-<div className="page active" id="page-badges">
-      <div className="page-head" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
-        <div>
-          <div className="page-eyebrow">Your visual credibility · What companies scan first</div>
-          <h1 className="page-title">My Badges</h1>
-          <p className="page-sub">Badges are earned automatically as you complete each verification stage — no manual claiming needed.</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => handleOpenStagesWizard(1)}
-          className="btn-open-stages-hero"
-          style={{ background: 'var(--grad-navy-dark)', color: '#FFFFFF', border: '1.5px solid var(--gold)' }}
-          title="Open 7 Stages Wizard to unlock badges"
-        >
-          <span style={{ color: 'var(--gold-lite)' }}><i className="fa-solid fa-bolt" /></span>
-          <span>Open {wizardStageTotal} Stages Dashboard</span>
-        </button>
-      </div>
-
-      <div className="badge-section priority-required">
-        <div className="badge-sec-title">
-          <><i className="fa-solid fa-shield-halved" style={{ marginRight: 8, color: "var(--red)" }} />Verification Badges</>
-          <span className="badge-sec-tag">CORE STAGES</span>
-        </div>
-        <div className="badge-sec-sub">These come directly from your 8 verification stages and are what companies check first.</div>
-        <div className="badge-grid">
-          {visibleBadgeCriteria.map((b) => (
-            <div className={"badge " + (b.earned ? "earned priority" : "locked")} key={b.key}>
-              {b.earned && <div className="badge-crown"><i className="fa-solid fa-crown" /></div>}
-              {b.earned && <div className="badge-verified"><i className="fa-solid fa-check" /></div>}
-              <div className="badge-ico">{b.icon}</div>
-              <div className="badge-name">{b.label}</div>
-              <div className="badge-sub">{b.earned ? 'Verified' : 'Not completed yet'}</div>
-              <span className={"badge-value " + (b.earned ? "" : "locked-tag")}>{b.earned ? 'Earned' : 'Locked'}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="badge-section">
-        <div className="badge-sec-title">
-          <><i className="fa-solid fa-certificate" style={{ marginRight: 8, color: "var(--gold)" }} />Certification Badges</>
-          <span className="badge-sec-tag regular">FROM STAGE 03</span>
-        </div>
-        <div className="badge-sec-sub">Every certification you've added in Stage 03, shown here automatically.</div>
-        <div className="badge-grid">
-          {(profile?.stage3?.certifications?.length > 0 ? profile.stage3.certifications : (profile?.stage3?.certCode ? [profile.stage3] : [])).map((cert, idx) => (
-            <div className="badge earned" key={cert.memberId || cert.certCode || idx}>
-              <div className="badge-verified"><i className="fa-solid fa-check" /></div>
-              <div className="badge-ico">{cert.code || cert.certCode || 'CERT'}</div>
-              <div className="badge-name">{(cert.body || cert.issuingBody || 'AAPC')} {cert.code || cert.certCode}</div>
-              <div className="badge-sub">{cert.name || cert.certName || 'Certification'}</div>
-              <span className="badge-value regular">{profile?.stage3?.certStatus === 'verified' ? 'Verified' : 'Pending'}</span>
-            </div>
-          ))}
-          {!(profile?.stage3?.certifications?.length > 0) && !profile?.stage3?.certCode && (
-            <div className="badge locked" onClick={() => handleOpenStagesWizard(3)} style={{ cursor: 'pointer' }}>
-              <div className="badge-ico"><i className="fa-solid fa-certificate" /></div>
-              <div className="badge-name">No Certifications Yet</div>
-              <div className="badge-sub">Add one in Stage 03</div>
-              <span className="badge-value locked-tag">Locked · Click to Add</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="badge-section">
-        <div className="badge-sec-title">
-          <><i className="fa-solid fa-award" style={{ marginRight: 8, color: "var(--gold)" }} />Milestone Badges</>
-          <span className="badge-sec-tag achievement">FROM LIVE CHARTS</span>
-        </div>
-        <div className="badge-sec-sub">Automatic milestones based on your logged live-chart activity.</div>
-        <div className="badge-grid">
-          <div className={"badge " + (chartsCoded >= 100 ? "earned" : "locked")}>
-            {chartsCoded >= 100 && <div className="badge-verified"><i className="fa-solid fa-check" /></div>}
-            <div className="badge-ico"><i className="fa-solid fa-check-double" /></div>
-            <div className="badge-name">100 Charts Club</div>
-            <div className="badge-sub">{chartsCoded >= 100 ? `${chartsCoded} charts logged` : `${chartsCoded} / 100 charts logged`}</div>
-            <span className={"badge-value " + (chartsCoded >= 100 ? "regular" : "locked-tag")}>{chartsCoded >= 100 ? 'Earned' : 'Locked'}</span>
-          </div>
-          <div className={"badge " + (chartsCoded >= 500 ? "earned" : "locked")}>
-            {chartsCoded >= 500 && <div className="badge-verified"><i className="fa-solid fa-check" /></div>}
-            <div className="badge-ico"><i className="fa-solid fa-mountain" /></div>
-            <div className="badge-name">500 Charts Club</div>
-            <div className="badge-sub">{chartsCoded >= 500 ? `${chartsCoded} charts logged` : `${chartsCoded} / 500 charts logged`}</div>
-            <span className={"badge-value " + (chartsCoded >= 500 ? "regular" : "locked-tag")}>{chartsCoded >= 500 ? 'Earned' : 'Locked'}</span>
-          </div>
-          <div className={"badge " + (profile?.stage5?.regionalLanguage ? "earned" : "locked")}>
-            {profile?.stage5?.regionalLanguage && <div className="badge-verified"><i className="fa-solid fa-check" /></div>}
-            <div className="badge-ico"><i className="fa-solid fa-earth-americas" /></div>
-            <div className="badge-name">Multilingual</div>
-            <div className="badge-sub">{profile?.stage5?.regionalLanguage ? `English + ${profile.stage5.regionalLanguage}` : 'Add a regional-language video in Stage 05'}</div>
-            <span className={"badge-value " + (profile?.stage5?.regionalLanguage ? "regular" : "locked-tag")}>{profile?.stage5?.regionalLanguage ? 'Earned' : 'Locked'}</span>
-          </div>
-          {!isExperiencedProfile(profile) && (
-          <div className={"badge " + (profile?.stage4?.medal === 'Gold' ? "earned" : "locked")}>
-            {profile?.stage4?.medal === 'Gold' && <div className="badge-verified"><i className="fa-solid fa-check" /></div>}
-            <div className="badge-ico"><i className="fa-solid fa-medal" /></div>
-            <div className="badge-name">Gold Assessment</div>
-            <div className="badge-sub">{profile?.stage4?.medal === 'Gold' ? 'Scored 85+ on the assessment' : 'Score 85+ to unlock'}</div>
-            <span className={"badge-value " + (profile?.stage4?.medal === 'Gold' ? "regular" : "locked-tag")}>{profile?.stage4?.medal === 'Gold' ? 'Earned' : 'Locked'}</span>
-          </div>
-          )}
-        </div>
-      </div>
-
-      {/* Unlock remaining badges banner */}
-      <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', background: 'var(--grad-hero)', color: '#FFFFFF', borderRadius: '16px', marginTop: '24px', border: '1.5px solid rgba(245, 166, 35, 0.45)', flexWrap: 'wrap', gap: '14px' }}>
-        <div>
-          <div style={{ fontWeight: 800, fontSize: '15.5px' }}><><i className="fa-solid fa-rocket" style={{ marginRight: 8 }} />Unlock All 8 Verification Badges</></div>
-          <div style={{ fontSize: '12.5px', color: 'rgba(255, 255, 255, 0.85)', marginTop: '4px' }}>Complete or improve your scores in the candidate 7 stages verification dashboard.</div>
-        </div>
-        <button
-          type="button"
-          onClick={() => handleOpenStagesWizard(1)}
-          className="btn-open-stages-hero"
-        >
-          <><i className="fa-solid fa-bolt" style={{ marginRight: 6 }} />Open {wizardStageTotal} Stages Dashboard</>
-        </button>
       </div>
     </div>
 )}
@@ -1924,8 +1963,8 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
         </div>
         <div className="settings-card">
           <h3 style={{"fontSize":"15px","fontWeight":"800","color":"var(--navy)","margin":"0 0 12px"}}>Notifications</h3>
-          <div className="setting-row"><div><div className="setting-label">WhatsApp Alerts</div><div className="setting-desc">New matches + invites</div></div><div className="toggle on" onClick={(e) => e.currentTarget.classList.toggle("on")}></div></div>
-          <div className="setting-row"><div><div className="setting-label">Email Digest</div><div className="setting-desc">Weekly career summary</div></div><div className="toggle on" onClick={(e) => e.currentTarget.classList.toggle("on")}></div></div>
+          <div className="setting-row"><div><div className="setting-label">WhatsApp Updates</div><div className="setting-desc">Jobs, companies, training &amp; reminders (twice a week)</div></div><div className={"toggle " + (updatePrefs.whatsapp ? "on" : "")} onClick={() => toggleUpdatePref('whatsapp')}></div></div>
+          <div className="setting-row"><div><div className="setting-label">Email Updates</div><div className="setting-desc">Jobs, companies, training &amp; reminders (twice a week)</div></div><div className={"toggle " + (updatePrefs.email ? "on" : "")} onClick={() => toggleUpdatePref('email')}></div></div>
           <div className="setting-row"><div><div className="setting-label">SMS on Interview</div><div className="setting-desc">Urgent slot reminders</div></div><div className="toggle on" onClick={(e) => e.currentTarget.classList.toggle("on")}></div></div>
           <div className="setting-row"><div><div className="setting-label">Learning Reminders</div><div className="setting-desc">Daily practice nudge</div></div><div className="toggle" onClick={(e) => e.currentTarget.classList.toggle("on")}></div></div>
         </div>

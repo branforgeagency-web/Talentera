@@ -7,6 +7,7 @@ import { getMedalTier, medalLabel, medalBadgeStyle } from "../utils/medalBadge.j
 import { parseSkillList, buildSoftSkills } from "../utils/resumeSkills.js";
 import { durationBetween, formatDateRange } from "../utils/resumeFormat.js";
 import { buildCareerObjectives, getCertStatus, getExperienceLevel, isLegacyAutoObjective } from "../utils/careerObjective.js";
+import BadgeLogo, { badgeLogoSrc } from "./BadgeLogo.jsx";
 
 // 7 Verified Resume Templates matching Talentera standards
 export const RESUME_TEMPLATES = [
@@ -2016,22 +2017,171 @@ export default function CandidateResumeSection({ candidate, onSaved, readOnly = 
           </div>
         )}
 
-        {/* FOOTER WATERMARK */}
-        {visibleSections.qrStamp && (
-          <div style={{
-            borderTop: "1px dashed #CBD5E1",
-            marginTop: 22,
-            paddingTop: 12,
-            textAlign: "center",
-            fontSize: 10.5,
-            color: "#64748B",
-          }}>
-            <div>Verified by Talentera · ID {verificationId} · Live at {liveResumeUrl}</div>
-            <div style={{ fontSize: 9.5, color: "#94A3B8", marginTop: 3, fontFamily: "monospace" }}>
-              SHA-256 · a3f8b9c2d4e5f6a7...b8c9d0e1f2a3b4c5
+        {/* FOOTER: verification text bottom-left, earned badge logos bottom-right */}
+        {(() => {
+          const completedStages = Array.isArray(candidateObj.completedStages) ? candidateObj.completedStages : [];
+          const s1 = candidateObj.stage1 || {};
+          const s2 = candidateObj.stage2 || stage2 || {};
+          const s3 = candidateObj.stage3 || {};
+          const s4 = candidateObj.stage4 || {};
+          const s5 = candidateObj.stage5 || {};
+          const s6 = candidateObj.stage6 || {};
+          const s7 = candidateObj.stage7 || {};
+          const s8 = candidateObj.stage8 || {};
+
+          const aadhaarEarned = Boolean(s1.aadhaarVerified === true || s1.aadhaarStatus === "VERIFIED" || completedStages.includes(1));
+          const academyEarned = Boolean(completedStages.includes(2) || s2.verified || (!isNonTrainedProfile && Boolean(s2.academyName) && s2.trainingPath !== "self") || Boolean(s2.academyAssessmentScore));
+          const certEarned = Boolean(s3.certStatus === "verified" || completedStages.includes(3) || ((Array.isArray(s3.certifications) ? s3.certifications.length > 0 : Boolean(s3.certCode)) && s3.certStatus !== "rejected"));
+          const assessmentEarned = Boolean(s4.passed === true || (s4.score !== undefined && s4.score !== null && Number(s4.score) >= 70) || completedStages.includes(4));
+          const videoEarned = Boolean(s5.verified === true || Boolean(s5.videoUrl) || completedStages.includes(5));
+          const chartsEarned = Boolean((s6.totalCharts || 0) > 0 || s6.verified === true || completedStages.includes(6));
+          const resumeEarned = Boolean(completedStages.includes(7) || s7.built === true || candidateObj.resumeBuilt);
+          const trackEarned = Boolean(completedStages.includes(8) || Boolean(s8.employmentStatus) || candidateObj.isSubmitted === true);
+
+          const earnedBadges = [];
+          if (aadhaarEarned) {
+            earnedBadges.push({
+              key: "aadhaar",
+              src: badgeLogoSrc("aadhaar"),
+              label: "Aadhaar Identity Verified",
+            });
+          }
+          if (academyEarned) {
+            earnedBadges.push({
+              key: "academy",
+              src: badgeLogoSrc("academy", { academyLogoUrl: s2.academyLogoUrl }),
+              label: s2.academyName && !isNonTrainedProfile ? `${s2.academyName} Foundation Complete` : "Academy Foundation Complete",
+            });
+          }
+          if (certEarned) {
+            const certList = Array.isArray(s3.certifications) && s3.certifications.length > 0
+              ? s3.certifications.filter((c) => c.status !== "rejected")
+              : (s3.certCode ? [{ body: s3.issuingBody || "AAPC", code: s3.certCode, name: s3.certName }] : [{ body: s3.issuingBody || "AAPC", code: "CPC", name: "Certified" }]);
+            certList.forEach((c, idx) => {
+              const cBody = c.issuingBody || c.body || s3.issuingBody || "AAPC";
+              const cCode = c.code || c.certCode || "";
+              earnedBadges.push({
+                key: `cert-${idx}-${cCode || cBody}`,
+                src: badgeLogoSrc("cert", { certBody: cBody, certCode: cCode }),
+                label: `${String(c.name || cCode || cBody).toUpperCase()} Certified`,
+              });
+            });
+          }
+          if (assessmentEarned) {
+            earnedBadges.push({
+              key: "assessment",
+              src: badgeLogoSrc("assessment"),
+              label: `Assessment Passed (${s4.score || 0}%)`,
+            });
+          }
+          if (videoEarned) {
+            earnedBadges.push({
+              key: "video",
+              src: badgeLogoSrc("video"),
+              label: "Video Pitch Verified",
+            });
+          }
+          if (chartsEarned) {
+            earnedBadges.push({
+              key: "charts",
+              src: badgeLogoSrc("charts"),
+              label: `Live Charts Logged (${s6.totalCharts || 0} charts)`,
+            });
+          }
+          if (resumeEarned) {
+            earnedBadges.push({
+              key: "resume",
+              src: badgeLogoSrc("resume"),
+              label: "Resume Built & Verified",
+            });
+          }
+          if (trackEarned) {
+            earnedBadges.push({
+              key: "track",
+              src: badgeLogoSrc("track"),
+              label: "Employment Status Set",
+            });
+          }
+          if ((s6.totalCharts || 0) >= 100) {
+            earnedBadges.push({
+              key: "charts-100",
+              src: badgeLogoSrc("charts-100"),
+              label: "100 Charts Club",
+            });
+          }
+          if ((s6.totalCharts || 0) >= 500) {
+            earnedBadges.push({
+              key: "charts-500",
+              src: badgeLogoSrc("charts-500"),
+              label: "500 Charts Club",
+            });
+          }
+          if (s5.regionalLanguage) {
+            earnedBadges.push({
+              key: "multilingual",
+              src: badgeLogoSrc("multilingual"),
+              label: `Multilingual (${s5.regionalLanguage})`,
+            });
+          }
+          if (s4.medal === "Gold" || Number(s4.score) >= 85) {
+            earnedBadges.push({
+              key: "gold-assessment",
+              src: badgeLogoSrc("gold-assessment"),
+              label: "Gold Assessment Medal",
+            });
+          }
+
+          if (visibleSections.qrStamp === false && earnedBadges.length === 0) return null;
+
+          return (
+            <div style={{
+              borderTop: "1px dashed #CBD5E1",
+              marginTop: 22,
+              paddingTop: 12,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-end",
+              gap: 16,
+              flexWrap: "wrap",
+            }}>
+              {/* Bottom Left: Verification ID & Hash */}
+              <div style={{ textAlign: "left", fontSize: 10, color: "#64748B", lineHeight: 1.45, maxWidth: "60%" }}>
+                <div style={{ fontWeight: 600 }}>Verified by Talentera · ID {verificationId} · Live at {liveResumeUrl}</div>
+                <div style={{ fontSize: 9, color: "#94A3B8", marginTop: 2, fontFamily: "monospace" }}>
+                  SHA-256 · a3f8b9c2d4e5f6a7...b8c9d0e1f2a3b4c5
+                </div>
+              </div>
+
+              {/* Bottom Right: Earned Badge Logos (only logos) */}
+              {earnedBadges.length > 0 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  {earnedBadges.map((b) => (
+                    <span
+                      key={b.key}
+                      title={b.label}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "#FFFFFF",
+                        borderRadius: "6px",
+                        padding: "2px",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                      }}
+                    >
+                      <BadgeLogo
+                        src={b.src}
+                        alt={b.label}
+                        size={28}
+                        fallback={<span style={{ width: 28, height: 28, borderRadius: 6, background: "#ECFDF5", color: "#059669", display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13 }}>✓</span>}
+                      />
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* QR Code Modal Popup */}

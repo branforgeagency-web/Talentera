@@ -5,14 +5,27 @@
  * was already earned, so they always contribute 0 points regardless of
  * completion status.
  *
+ * Fresher Candidate Points (Unchanged):
  *   01 Identity (Basic + Aadhaar)        15
  *   02 Foundation (Academy & Training)   15
- *   03 Certification                     15
+ *   03 Certification                     15 (up to 20 when verified)
  *   04 Assessment (Flagship)             20
  *   05 Video Pitch (Portfolio Video)     15
  *   06 Live Chart (Co-Flagship)          20
  *   07 Resume (output only)               0
  *   08 Career Passport (output only)      0
+ *   Total = 100
+ *
+ * Experienced Candidate Points (Option A):
+ *   01 Identity (Basic + Aadhaar)        15
+ *   02 Experience Level & Proof          25 (Experience tier up to 20 pts + proof 5 pts)
+ *   03 Certification (5 pts per cert)    20 (up to 4 certs × 5 pts = 20 pts)
+ *   04 Assessment (Exempt)                0 (Exempt — skipped for experienced)
+ *   05 Video Pitch & Communication       15
+ *   06 Live Charts / Production          25
+ *   07 Resume (output only)               0
+ *   08 Career Passport (output only)      0
+ *   Total = 100
  *
  * 75+ => "Talentera Verified" gold badge tier.
  *
@@ -34,22 +47,28 @@ const STAGE_POINTS = {
   8: 0,
 };
 
+const EXPERIENCED_STAGE_POINTS = {
+  1: 15,
+  2: 25,
+  3: 20,
+  4: 0,
+  5: 15,
+  6: 25,
+  7: 0,
+  8: 0,
+};
+
 const GOLD_BADGE_THRESHOLD = 75;
 
-// Live Chart (Stage 06) doesn't apply to AR Calling / Eligibility & Verification / Billing work.
-// For those domains it is a BONUS stage: it earns points only when the candidate has real chart
-// exposure (the normal Stage 06 scoring below gives 0 for "no exposure" / skipped), and the other
-// stages are NOT rescaled - so a candidate with Stages 1-2 done simply scores 30, not 38.
-// Keep the domain list in sync with LIVE_CHART_EXEMPT_DOMAINS in routes/candidate.js and
-// frontend/src/data/wizardStages.js.
-
-// Experienced candidates skip the Stage 04 Assessment. Their 20 points move to Stage 03
-// (Certification), so the score is driven by certifications and still adds up to 100.
+// Experienced candidates skip Stage 04 Assessment and follow the experienced points model.
 function isExperiencedCandidate(candidate) {
-  return /exp/i.test(String((candidate && candidate.stage1 && candidate.stage1.experience) || ""));
+  if (!candidate) return false;
+  const s1Exp = String(candidate.stage1?.experience || candidate.stage1?.experienceLevel || "");
+  const rootExp = String(candidate.experience || candidate.experienceLevel || "");
+  return /exp/i.test(s1Exp) || /exp/i.test(rootExp);
 }
 
-// Fixed credit for the two "no evidence" cases the business rules give 15 points for:
+// Fixed credit for the two "no evidence" cases the business rules give 15 points for (Freshers):
 //  - a Non-Trained (self-trained) candidate who skips Live Charts / has no chart exposure
 //  - a candidate who chose Non-Certified in Stage 3
 const SKIP_CREDIT_POINTS = 15;
@@ -74,10 +93,6 @@ function isNonCertified(s3 = {}) {
 }
 
 // ---- Evidence checks -------------------------------------------------------------------
-// Points are only earned for what the candidate has actually done. Being marked "completed"
-// (or choosing a path) is not enough on its own - e.g. a Non-Certified candidate has no
-// certification, and a candidate who never recorded the Video Pitch / AI interview has no
-// Stage 5 evidence.
 function hasRealCertification(s3 = {}) {
   const type = String(s3.certType || s3.status || "").toLowerCase();
   if (s3.nonCertified === true || s3.isCertified === false || s3.certStatus === "non-certified") return false;
@@ -85,6 +100,23 @@ function hasRealCertification(s3 = {}) {
   if (String(s3.certName || "").toLowerCase().startsWith("pursuing")) return false;
   const code = String(s3.certCode || "").toUpperCase();
   return (Array.isArray(s3.certifications) && s3.certifications.length > 0) || (!!code && code !== "NON-CERT");
+}
+
+// Number of certifications the candidate has listed.
+function countCertifications(s3 = {}) {
+  if (isNonCertified(s3)) return 0;
+  const arr = Array.isArray(s3.certifications) ? s3.certifications.filter((c) => c && (c.certName || c.name || c.certCode || c.code || c.memberId)) : [];
+  if (arr.length > 0) return arr.length;
+  return hasRealCertification(s3) ? 1 : 0;
+}
+
+// A certificate counts as verified when staff audited it OR the AAPC / issuing-body authenticity
+// validation passed (isReal === true). A staff rejection always wins.
+function isCertVerified(s3 = {}) {
+  if (s3.certStatus === "rejected") return false;
+  if (s3.certStatus === "verified" || s3.status === "verified" || s3.verified === true) return true;
+  if (s3.isReal === true) return true;
+  return Array.isArray(s3.certifications) && s3.certifications.some((c) => c && c.isReal === true);
 }
 
 function hasStage5Evidence(s5 = {}) {
@@ -95,153 +127,272 @@ function hasStage5Evidence(s5 = {}) {
   );
 }
 
+/**
+ * Experienced Candidate - Stage 2: Experience Level & Proof points (Max 25 pts)
+ * - Years of experience tier: up to 20 pts
+ *   - Less than 1 yr: 8 pts
+ *   - 1 – 2 yrs: 12 pts
+ *   - 2 – 3 yrs: 15 pts
+ *   - 3 – 5 yrs: 18 pts
+ *   - 5+ yrs (5–8 yrs, 8+ yrs): 20 pts
+ * - Proof document (relieving letter, payslip, certDocUrl, etc.): +5 pts
+ */
+function getExperiencedStage2Points(s2 = {}) {
+  let expPts = 10; // Baseline for experienced
+  const expStr = String(s2.totalExperience || s2.experience || "").toLowerCase().trim();
+
+  if (expStr.includes("less") || expStr.includes("< 1") || expStr.includes("0.") || expStr.includes("month")) {
+    expPts = 8;
+  } else if (expStr.includes("1 – 2") || expStr.includes("1-2") || expStr.includes("1 to 2") || expStr === "1" || expStr.startsWith("1 ")) {
+    expPts = 12;
+  } else if (expStr.includes("2 – 3") || expStr.includes("2-3") || expStr.includes("2 to 3") || expStr === "2" || expStr.startsWith("2 ")) {
+    expPts = 15;
+  } else if (expStr.includes("3 – 5") || expStr.includes("3-5") || expStr.includes("3 to 5") || expStr === "3" || expStr === "4") {
+    expPts = 18;
+  } else if (
+    expStr.includes("5 – 8") || expStr.includes("5-8") || expStr.includes("8+") || expStr.includes("5+") ||
+    expStr.includes("5 to 8") || expStr.includes("8 plus") || expStr.includes("10") || expStr.includes("7") || expStr.includes("6")
+  ) {
+    expPts = 20;
+  } else {
+    const match = expStr.match(/(\d+(\.\d+)?)/);
+    if (match) {
+      const yrs = parseFloat(match[1]);
+      if (yrs < 1) expPts = 8;
+      else if (yrs < 2) expPts = 12;
+      else if (yrs < 3) expPts = 15;
+      else if (yrs < 5) expPts = 18;
+      else expPts = 20;
+    } else if (Array.isArray(s2.workHistory) && s2.workHistory.length > 0) {
+      const totalYrs = s2.workHistory.reduce((sum, w) => sum + (parseFloat(w.experienceYears || w.years || w.duration) || 0), 0);
+      if (totalYrs < 1 && totalYrs > 0) expPts = 8;
+      else if (totalYrs < 2 && totalYrs >= 1) expPts = 12;
+      else if (totalYrs < 3 && totalYrs >= 2) expPts = 15;
+      else if (totalYrs < 5 && totalYrs >= 3) expPts = 18;
+      else if (totalYrs >= 5) expPts = 20;
+    }
+  }
+
+  // Document proof: +5 pts
+  const hasProof = Boolean(
+    s2.proofDocUrl || s2.certDocUrl || s2.relievingLetterUrl || s2.payslipUrl || s2.experienceDocUrl || s2.docUrl || s2.employmentStatus === "working"
+  );
+  if (hasProof) {
+    expPts += 5;
+  }
+
+  return Math.min(25, expPts);
+}
+
+/**
+ * Experienced Candidate - Stage 3: Per-Certificate Points (Max 20 pts)
+ * 5 points for each certificate added (up to 4 certificates = 20 pts).
+ */
+function getExperiencedStage3Points(s3 = {}) {
+  if (isNonCertified(s3) || s3.certStatus === "rejected") {
+    return 0;
+  }
+  const certCount = countCertifications(s3);
+  const validCount = Math.min(4, Math.max(0, certCount));
+  return validCount * 5;
+}
+
+/**
+ * Experienced Candidate - Stage 6: Live Charts & Production Exposure (Max 25 pts)
+ */
+function getExperiencedStage6Points(s6 = {}) {
+  if (s6.skipped) return 0;
+  if (typeof s6.verificationPoints === "number") {
+    const rawMax = 10;
+    return Math.min(25, Math.max(0, Math.round((s6.verificationPoints / rawMax) * 25)));
+  }
+  const opt = (s6.evidencePath || s6.option || "").toLowerCase();
+  if (opt === "a" || opt.includes("api") || opt === "practicode") {
+    return 25;
+  }
+  if (opt === "b" || opt.includes("academy") || opt === "upload") {
+    return 25;
+  }
+  if (opt === "c" || opt.includes("self") || opt === "declare") {
+    return 20;
+  }
+  if ((s6.totalCharts || 0) > 0) {
+    return 25;
+  }
+  if (opt === "d" || opt.includes("none") || opt === "no_exposure") {
+    return 0;
+  }
+  return 0;
+}
+
 function calculateVerificationScore(completedStages = [], candidate = null) {
   let score = 0;
   const verifiedStages = [];
   const stageScores = {};
   const experienced = isExperiencedCandidate(candidate);
-// Certification is "added value": freshers get a fixed 15 even when Non-Certified (so having no
-  // certificate never lowers a college student's score); a certificate on file keeps the 15 and a
-  // verified one adds +5 on top. The total is still capped at 100.
-  // Experienced candidates (no Stage 4, no AI mock interview) earn extra on a real certification: Stage 4's 20
-  // points move here, plus 5 more for the removed mock interview - total still capped at 100.
-  const EXPERIENCED_MOCK_REPLACEMENT_POINTS = 5;
-  const stage3Max = experienced ? STAGE_POINTS[3] + STAGE_POINTS[4] + EXPERIENCED_MOCK_REPLACEMENT_POINTS : STAGE_POINTS[3] + 5;
 
   for (const stage of completedStages) {
     if (stage === 1) {
       if (candidate && !(candidate.stage1?.aadhaarVerified === true || candidate.stage1?.aadhaarStatus === "VERIFIED")) {
         continue; // identity not actually verified yet
       }
-      score += STAGE_POINTS[1];
+      score += STAGE_POINTS[1]; // 15 pts
       stageScores[1] = STAGE_POINTS[1];
       verifiedStages.push(1);
     } else if (stage === 2) {
-      if (candidate && experienced) {
-        // Stage 2 is optional for experienced candidates - credited in full after this loop
-        // once their identity is verified (see below), whether or not they filled it in.
-        continue;
+      if (experienced) {
+        const pts2 = getExperiencedStage2Points(candidate?.stage2 || {});
+        score += pts2;
+        stageScores[2] = pts2;
+        verifiedStages.push(2);
+      } else {
+        score += STAGE_POINTS[2]; // 15 pts
+        stageScores[2] = STAGE_POINTS[2];
+        verifiedStages.push(2);
       }
-      score += STAGE_POINTS[2];
-      stageScores[2] = STAGE_POINTS[2];
-      verifiedStages.push(2);
     } else if (stage === 3) {
-      // Certification verification: only award full points if audit verified;
-      // a submitted-but-not-yet-audited certification earns partial credit.
-      if (candidate && !hasRealCertification(candidate.stage3 || {})) {
-        if (isNonCertified(candidate.stage3 || {})) {
-          // Chose "Non-Certified": the same fixed 15 points for EVERY candidate (experienced or not).
-          score += SKIP_CREDIT_POINTS;
+      if (experienced) {
+        // Option A: 5 points per certificate added (up to 4 certs = 20 pts)
+        const pts3 = getExperiencedStage3Points(candidate?.stage3 || {});
+        score += pts3;
+        stageScores[3] = pts3;
+        if (pts3 > 0 || isNonCertified(candidate?.stage3 || {})) {
+          verifiedStages.push(3);
+        }
+      } else {
+        // Fresher Stage 3 logic unchanged
+        if (candidate && !hasRealCertification(candidate.stage3 || {})) {
+          if (isNonCertified(candidate.stage3 || {})) {
+            score += SKIP_CREDIT_POINTS; // 15 pts
+            stageScores[3] = SKIP_CREDIT_POINTS;
+            verifiedStages.push(3);
+          }
+          continue;
+        }
+        if (!candidate || isCertVerified(candidate.stage3 || {})) {
+          const pts3 = STAGE_POINTS[3] + 5; // 20 pts (15 + 5 bonus)
+          score += pts3;
+          stageScores[3] = pts3;
+          verifiedStages.push(3);
+        } else {
+          score += SKIP_CREDIT_POINTS; // 15 pts
           stageScores[3] = SKIP_CREDIT_POINTS;
           verifiedStages.push(3);
         }
-        continue; // still pursuing / nothing entered: no points
-      }
-      if (!candidate || candidate.stage3?.certStatus === "verified" || candidate.stage3?.status === "verified" || candidate.stage3?.verified === true) {
-        score += stage3Max;
-        stageScores[3] = stage3Max;
-        verifiedStages.push(3);
-      } else {
-        const pts3 = experienced ? Math.round(stage3Max * 0.75) : SKIP_CREDIT_POINTS;
-        score += pts3;
-        stageScores[3] = pts3;
-        verifiedStages.push(3);
       }
     } else if (stage === 4) {
       if (experienced) {
-        continue; // Not required for experienced candidates - points moved to Certification
-      }
-      // Assessment (Flagship): points scale with the actual MCQ/proctored score,
-      // not just binary completion.
-      if (!candidate) {
-        score += STAGE_POINTS[4];
-        stageScores[4] = STAGE_POINTS[4];
+        // Option A: Exempt for experienced candidates — 0 points
+        stageScores[4] = 0;
         verifiedStages.push(4);
       } else {
-        const fScore =
-          candidate.stage4?.foundationScore !== undefined
-            ? candidate.stage4.foundationScore
-            : candidate.stage4?.score;
-        if (candidate.stage4?.passed === true || (fScore !== undefined && fScore >= 70)) {
+        // Fresher Stage 4 logic unchanged (20 pts)
+        if (!candidate) {
           score += STAGE_POINTS[4];
           stageScores[4] = STAGE_POINTS[4];
           verifiedStages.push(4);
-        } else if (fScore !== undefined && fScore > 0) {
-          const pts4 = Math.round((fScore / 100) * STAGE_POINTS[4]);
-          score += pts4;
-          stageScores[4] = pts4;
-          verifiedStages.push(4);
+        } else {
+          const fScore =
+            candidate.stage4?.foundationScore !== undefined
+              ? candidate.stage4.foundationScore
+              : candidate.stage4?.score;
+          if (candidate.stage4?.passed === true || (fScore !== undefined && fScore >= 70)) {
+            score += STAGE_POINTS[4];
+            stageScores[4] = STAGE_POINTS[4];
+            verifiedStages.push(4);
+          } else if (fScore !== undefined && fScore > 0) {
+            const pts4 = Math.round((fScore / 100) * STAGE_POINTS[4]);
+            score += pts4;
+            stageScores[4] = pts4;
+            verifiedStages.push(4);
+          }
         }
-        // no recorded assessment score = nothing earned
       }
     } else if (stage === 5) {
       if (candidate && !hasStage5Evidence(candidate.stage5 || {})) {
-        continue; // no video pitch / AI interview recorded
+        continue; // no video pitch recorded
       }
-      const pts5 = STAGE_POINTS[5];
+      const pts5 = STAGE_POINTS[5]; // 15 pts
       score += pts5;
       stageScores[5] = pts5;
       verifiedStages.push(5);
     } else if (stage === 6) {
-      // Live Chart Practice (Co-Flagship): rescaled onto STAGE_POINTS[6] from
-      // whatever raw scale Stage 6's own scoring (utils/stage6Score.js) or
-      // evidence-path option produced.
-      if (!candidate) {
-        score += STAGE_POINTS[6];
-        stageScores[6] = STAGE_POINTS[6];
-        verifiedStages.push(6);
+      if (experienced) {
+        // Option A: Live Charts & Production Exposure — max 25 pts
+        const pts6 = getExperiencedStage6Points(candidate?.stage6 || {});
+        score += pts6;
+        stageScores[6] = pts6;
+        if (pts6 >= 15) verifiedStages.push(6);
       } else {
-        const s6 = candidate.stage6 || {};
-        const opt = (s6.evidencePath || s6.option || "").toLowerCase();
-        let pts = 0;
-        if (s6.skipped) {
-          if (isSelfTrainedCandidate(candidate)) {
-            score += SKIP_CREDIT_POINTS;
-            stageScores[6] = SKIP_CREDIT_POINTS;
+        // Fresher Stage 6 logic unchanged (max 20 pts)
+        if (!candidate) {
+          score += STAGE_POINTS[6];
+          stageScores[6] = STAGE_POINTS[6];
+          verifiedStages.push(6);
+        } else {
+          const s6 = candidate.stage6 || {};
+          const opt = (s6.evidencePath || s6.option || "").toLowerCase();
+          let pts = 0;
+          if (s6.skipped) {
+            if (isSelfTrainedCandidate(candidate)) {
+              score += SKIP_CREDIT_POINTS;
+              stageScores[6] = SKIP_CREDIT_POINTS;
+            }
+            continue;
           }
-          continue;
-        }
-        if (typeof s6.verificationPoints === "number") {
-          const rawMax = 10; // historical raw scale from utils/stage6Score.js
-          pts = Math.min(STAGE_POINTS[6], Math.max(0, Math.round((s6.verificationPoints / rawMax) * STAGE_POINTS[6])));
+          if (typeof s6.verificationPoints === "number") {
+            const rawMax = 10;
+            pts = Math.min(STAGE_POINTS[6], Math.max(0, Math.round((s6.verificationPoints / rawMax) * STAGE_POINTS[6])));
+            score += pts;
+            stageScores[6] = pts;
+            if (pts >= Math.round(STAGE_POINTS[6] * 0.3)) verifiedStages.push(6);
+            continue;
+          } else if (opt === "a" || opt.includes("api") || opt === "practicode") {
+            pts = STAGE_POINTS[6];
+          } else if (opt === "b" || opt.includes("academy") || opt === "upload") {
+            pts = STAGE_POINTS[6];
+          } else if (opt === "c" || opt.includes("self") || opt === "declare") {
+            pts = Math.round(STAGE_POINTS[6] * 0.8);
+          } else if (opt === "d" || opt.includes("none") || opt === "no_exposure") {
+            pts = isSelfTrainedCandidate(candidate) ? SKIP_CREDIT_POINTS : 0;
+          } else if ((s6.totalCharts || 0) > 0) {
+            pts = STAGE_POINTS[6];
+          } else {
+            pts = isSelfTrainedCandidate(candidate) ? SKIP_CREDIT_POINTS : 0;
+          }
           score += pts;
           stageScores[6] = pts;
-          if (pts >= Math.round(STAGE_POINTS[6] * 0.3)) verifiedStages.push(6);
-          continue;
-        } else if (opt === "a" || opt.includes("api") || opt === "practicode") {
-          pts = STAGE_POINTS[6];
-        } else if (opt === "b" || opt.includes("academy") || opt === "upload") {
-          pts = STAGE_POINTS[6];
-        } else if (opt === "c" || opt.includes("self") || opt === "declare") {
-          pts = Math.round(STAGE_POINTS[6] * 0.8);
-        } else if (opt === "d" || opt.includes("none") || opt === "no_exposure") {
-          pts = isSelfTrainedCandidate(candidate) ? SKIP_CREDIT_POINTS : 0;
-        } else if ((s6.totalCharts || 0) > 0) {
-          pts = STAGE_POINTS[6];
-        } else {
-          pts = isSelfTrainedCandidate(candidate) ? SKIP_CREDIT_POINTS : 0; // no charts logged
+          if (pts >= Math.round(STAGE_POINTS[6] * 0.8)) verifiedStages.push(6);
         }
-        score += pts;
-        stageScores[6] = pts;
-        if (pts >= Math.round(STAGE_POINTS[6] * 0.8)) verifiedStages.push(6);
       }
     } else if (stage === 7) {
-      // Output only (Resume) - tracked as completed, worth 0 points.
       stageScores[7] = 0;
       verifiedStages.push(7);
     } else if (stage === 8) {
-      // Output only (Career Passport) - tracked as completed, worth 0 points.
       stageScores[8] = 0;
       verifiedStages.push(8);
     }
   }
 
-  // Experienced candidates: Foundation & Academics (Stage 2) is optional, so they get the full
-  // 15 points as soon as their identity is verified - they are never marked down for it.
+  // Ensure any completed or skipped stage has an explicit score entry (defaults to 0 if skipped)
+  completedStages.forEach((st) => {
+    if (stageScores[st] === undefined) {
+      stageScores[st] = 0;
+    }
+  });
+
+  // Experienced candidates: Stage 2 work history auto-credits once identity is verified (if not already processed)
   if (candidate && experienced && verifiedStages.includes(1) && stageScores[2] === undefined) {
-    score += STAGE_POINTS[2];
-    stageScores[2] = STAGE_POINTS[2];
+    const pts2 = getExperiencedStage2Points(candidate.stage2 || {});
+    score += pts2;
+    stageScores[2] = pts2;
     verifiedStages.push(2);
+  }
+
+  // Experienced candidates: Stage 4 is always marked exempt (0 pts, in verifiedStages) once identity is verified
+  if (candidate && experienced && verifiedStages.includes(1) && stageScores[4] === undefined) {
+    stageScores[4] = 0;
+    verifiedStages.push(4);
   }
 
   score = Math.min(100, Math.max(0, score));
@@ -257,4 +408,16 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
   };
 }
 
-module.exports = { calculateVerificationScore, isExperiencedCandidate, isNonCertified, hasRealCertification, STAGE_POINTS, GOLD_BADGE_THRESHOLD };
+module.exports = {
+  calculateVerificationScore,
+  isExperiencedCandidate,
+  isNonCertified,
+  hasRealCertification,
+  countCertifications,
+  getExperiencedStage2Points,
+  getExperiencedStage3Points,
+  getExperiencedStage6Points,
+  STAGE_POINTS,
+  EXPERIENCED_STAGE_POINTS,
+  GOLD_BADGE_THRESHOLD,
+};

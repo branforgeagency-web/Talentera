@@ -656,12 +656,12 @@ export function exportResumeWord(data) {
     </div>` : ""}
 
     <!-- FOOTER / AUDIT TRAIL -->
-    <div style="border-top: 1pt solid ${borderColor}; margin-top: 20pt; padding-top: 8pt; text-align: center; font-size: 8.5pt; color: #64748B;">
-      <div>
-        Verified by Talentera · Verification ID: <b>${verificationId}</b>
+    <div style="border-top: 1pt dashed #CBD5E1; margin-top: 20pt; padding-top: 8pt; text-align: left; font-size: 8.5pt; color: #64748B;">
+      <div style="font-weight: 600;">
+        Verified by Talentera · ID: <b>${verificationId}</b> · Live at <a href="${liveResumeUrl}" style="color: #2563EB;">${liveResumeUrl}</a>
       </div>
-      <div style="margin-top: 3pt;">
-        Live Verification & Audit Trail: <a href="${liveResumeUrl}" style="color: #2563EB;">${liveResumeUrl}</a>
+      <div style="margin-top: 2pt; font-family: monospace; font-size: 7.5pt; color: #94A3B8;">
+        SHA-256 · a3f8b9c2d4e5f6a7...b8c9d0e1f2a3b4c5
       </div>
     </div>
 

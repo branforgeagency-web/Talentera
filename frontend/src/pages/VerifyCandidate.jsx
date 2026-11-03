@@ -259,7 +259,7 @@ export default function VerifyCandidate() {
                   done={completedStages.includes(4)}
                   icon="✓" color="#D97706" bg="rgba(217,119,6,0.06)"
                   title="Stage 4: Skill Assessment Score"
-                  detail={`Proctored Score: ${assessment?.foundationScore ?? assessment?.score ?? "N/A"}/100 • Topic: ${assessment?.topic || "Domain Competency"}`}
+                  detail={`Proctored Score: ${assessment?.foundationScore ?? assessment?.score ?? "N/A"}/100 • ${(assessment?.totalAttempts || assessment?.attempts?.length || 1)} Attempt${(assessment?.totalAttempts || assessment?.attempts?.length || 1) === 1 ? "" : "s"}${assessment?.retakeCount ? ` (${assessment.retakeCount} retake${assessment.retakeCount === 1 ? "" : "s"})` : ""} • Topic: ${assessment?.topic || "Domain Competency"}`}
                   points={20}
                 />
 
