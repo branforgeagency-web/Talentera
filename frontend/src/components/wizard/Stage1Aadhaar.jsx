@@ -3514,7 +3514,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                 <label>
                   University / College <span className="req">*</span>
                 </label>
-                {stream === "Other" ? (
+                {educationStream === "Other" ? (
                   <input
                     type="text"
                     value={collegeName}
@@ -3547,11 +3547,11 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                 ) : (
                   <div className="helper">
                     <i className="fa-solid fa-magnifying-glass" style={{ marginRight: 5, color: "#94A3B8" }} />
-                    {stream === "Other" ? "Type the full name of your college / university." : "Search from 53,000+ colleges across India. Not found? Type the full name directly."}
+                    {educationStream === "Other" ? "Type the full name of your college / university." : "Search from 53,000+ colleges across India. Not found? Type the full name directly."}
                   </div>
                 )}
                 <label style={{ marginTop: 12 }}>College location <span style={{ fontWeight: 500, opacity: 0.7 }}>(district / city)</span></label>
-                {stream === "Other" ? (
+                {educationStream === "Other" ? (
                   <input
                     type="text"
                     value={collegeLocation}
