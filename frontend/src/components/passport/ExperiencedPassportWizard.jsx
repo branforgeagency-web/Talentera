@@ -65,7 +65,6 @@ function isHidden(stageNum, secId, key, entry, all) {
   if (stageNum === 3 && (key === "careerGapDuration" || key === "careerGapReason")) {
     return entry.hasCareerGap !== "Yes";
   }
-  if (stageNum === 3 && key === "lastWorkingDate") return entry.currentlyWorkingHere === "Yes";
   if (stageNum === 5 && secId === "leadership-achievements" && ["teamSize", "leadershipRole", "yearsOfLeadershipExperience"].includes(key))
     return entry.handledATeam !== "Yes";
   if (stageNum === 6 && key === "expiryDate") return entry.noExpiry === "Yes";
@@ -708,7 +707,7 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
     }
     return (
       <div className={"xp-field" + (wide ? " full" : "") + (bad ? " err" : "")} key={f.key}>
-        <label>{f.label}{(f.required || conditionallyRequired(active, sec.id, f.key, entry)) && <em> *</em>}</label>
+        <label>{(f.key === "lastWorkingDate" && entry.currentlyWorkingHere === "Yes") ? "Expected Last Working Date (optional)" : f.label}{(f.required || conditionallyRequired(active, sec.id, f.key, entry)) && <em> *</em>}</label>
         {input}
         {bad && <div className="xp-err-msg">{f.type === "file" ? "Please upload this file" : f.type === "select" ? "Please select an option" : "This field is required"}</div>}
         {f.source && (

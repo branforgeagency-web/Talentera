@@ -407,6 +407,15 @@ export default function AcademyAssessmentModule({ getAuthHeader, students = [], 
             ))}
           </div>
 
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 12, padding: "10px 12px", border: "1px dashed #CBD5E1", borderRadius: 10, background: "#FFFFFF" }}>
+            <strong style={{ fontSize: 12, color: "#06152A" }}>Add Question:</strong>
+            {["mcq", "fill_blank", "qa"].map((t) => (
+              <button key={t} style={btn("ghost")} onClick={() => setForm((f) => ({ ...f, questions: [...f.questions, blankQuestion(t)] }))}>
+                + Add {TYPE_LABEL[t]}
+              </button>
+            ))}
+          </div>
+
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
             <button style={btn("ghost")} disabled={saving} onClick={() => saveForm("draft")}>Save as draft</button>
             <button style={btn("primary")} disabled={saving} onClick={() => saveForm("published")}>{saving ? "Saving..." : "Save & publish"}</button>
