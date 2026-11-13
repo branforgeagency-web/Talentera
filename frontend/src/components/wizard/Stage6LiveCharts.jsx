@@ -38,7 +38,7 @@ const getPaths = (isSelfTrained, isExemptDomain = false) => [
   { id: "A", title: "Platform-Reported", sub: "Practicode, Codivia, 3M etc. — figures from your platform dashboard", credit: "100% once staff-verified · 60% pending", badge: "Self-Reported (Platform)", badgeBg: "#FEF9C3", badgeFg: "#854D0E", chipBg: "#FDE68A", chipFg: "#78350F", dotColor: "#EAB308" },
   { id: "B", title: "Academy-Verified Log", sub: "Upload your chart log signed off by your academy", credit: "100% with proof · 60% without", badge: "Academy-Signed", badgeBg: "#DCFCE7", badgeFg: "#166534", chipBg: "#1E293B", chipFg: "#FFFFFF", dotColor: "#16A34A" },
   { id: "C", title: "Self-Declared", sub: "Manual entry, subject to random audit", credit: "70% credit", badge: "Self-Declared", badgeBg: "#FFEDD5", badgeFg: "#9A3412", chipBg: "#0284C7", chipFg: "#FFFFFF", dotColor: "#F97316" },
-  { id: "D", title: "No exposure yet", sub: isExemptDomain ? "Not required for your role — no effect on your profile" : isSelfTrained ? "Optional for self-trained — zero penalty to verification eligibility" : "Honest declaration — but limits company visibility", credit: "0 pts", badge: "No Charts", badgeBg: "#FEE2E2", badgeFg: "#991B1B", chipBg: "#0F172A", chipFg: "#FFFFFF", dotColor: "#EF4444" },
+  { id: "D", title: isExemptDomain ? "Not Applicable" : "No exposure yet", sub: isExemptDomain ? "Not required for your role — no effect on your profile" : isSelfTrained ? "Optional for self-trained — zero penalty to verification eligibility" : "Honest declaration — but limits company visibility", credit: isExemptDomain ? "No impact" : "0 pts", badge: isExemptDomain ? "Not Applicable" : "No Charts", badgeBg: isExemptDomain ? "#E0F2FE" : "#FEE2E2", badgeFg: isExemptDomain ? "#075985" : "#991B1B", chipBg: "#0F172A", chipFg: "#FFFFFF", dotColor: "#EF4444" },
 ];
 
 const SPECIALTY_OPTIONS = [
@@ -613,7 +613,7 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved, onP
 
             {/* 1. EVIDENCE PATH */}
             <div style={{ marginBottom: 36 }}>
-              <SectionHeader n={1} title="Choose your evidence path" badge={`${Math.round(result.multiplier * 100)}% trust credit`} badgeTone={evidencePath === "D" ? "red" : "green"} />
+              <SectionHeader n={1} title="Choose your evidence path" badge={isExemptDomain && evidencePath === "D" ? "Not applicable - no effect on score" : `${Math.round(result.multiplier * 100)}% trust credit`} badgeTone={evidencePath === "D" && !isExemptDomain ? "red" : "green"} />
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 14 }}>
                 {PATHS.map((p) => {
                   const sel = evidencePath === p.id;
@@ -641,7 +641,7 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved, onP
                   <i className={isSelfTrained ? "fa-solid fa-circle-check" : "fa-solid fa-circle-info"} style={{ marginTop: 2 }} />
                   <span>
                     {isExemptDomain
-                      ? "You have selected \"No exposure yet\". Stage 06 is not required for your role, so this has no effect on your profile or score."
+                      ? "You have selected \"Not Applicable\". Live chart coding is not part of your role, so this has no effect on your profile or score, and companies will not see \"No Charts\"."
                       : isSelfTrained
                       ? "You have selected \"No exposure yet\". As a self-trained candidate, this is perfectly fine — Stage 06 is optional for you and skipping it carries zero penalty to your verification eligibility. You can come back and update this any time after you start coding live charts."
                       : "You have chosen \"No exposure yet\". Stage 06 scores 0 and companies will see \"No Charts\". You can come back and update this any time after you start coding live charts."}
@@ -1050,7 +1050,7 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved, onP
                     <i className="fa-solid fa-chart-column" style={{ fontSize: 10 }} /> {tier} · {totalCharts} charts · {overallAccuracy}% acc
                   </span>
                   <span style={{ background: evidencePath === "B" && uploadedDocUrl ? "#065F46" : "#78350F", color: evidencePath === "B" && uploadedDocUrl ? "#6EE7B7" : "#FDE68A", padding: "4px 12px", borderRadius: 999, fontSize: 11.5, fontWeight: 800 }}>
-                    {evidencePath === "A" ? "Self-Reported (Platform)" : evidencePath === "B" ? (uploadedDocUrl ? "Academy-Signed" : "Pending Upload") : evidencePath === "C" ? "Self-Declared" : "No Charts"}
+                    {evidencePath === "A" ? "Self-Reported (Platform)" : evidencePath === "B" ? (uploadedDocUrl ? "Academy-Signed" : "Pending Upload") : evidencePath === "C" ? "Self-Declared" : (isExemptDomain ? "Not Applicable" : "No Charts")}
                   </span>
                   {selectedPlatforms.length > 0 && evidencePath !== "D" && <span style={{ background: "#854D0E", color: "#FEF08A", padding: "4px 12px", borderRadius: 999, fontSize: 11.5, fontWeight: 800 }}>{selectedPlatforms.slice(0, 3).join(" + ")}</span>}
                   {result.needsReview && <span style={{ background: "#7C2D12", color: "#FED7AA", padding: "4px 12px", borderRadius: 999, fontSize: 11.5, fontWeight: 800 }}>Under review</span>}
@@ -1065,7 +1065,7 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved, onP
                     ))}
                   </div>
                 ) : (
-                  <div style={{ fontSize: 13, color: "#94A3B8", marginBottom: 18 }}>{evidencePath === "D" ? "No chart exposure declared." : "Enter your chart counts to see your record."}</div>
+                  <div style={{ fontSize: 13, color: "#94A3B8", marginBottom: 18 }}>{evidencePath === "D" ? (isExemptDomain ? "Not applicable for your role." : "No chart exposure declared.") : "Enter your chart counts to see your record."}</div>
                 )}
                 <div style={{ fontSize: 12, color: "#64748B" }}>Total {totalCharts} charts · {overallAccuracy}% avg · {result.avgTimePerChart || 0} min/chart{result.lastCodedDate ? ` · last coded ${new Date(result.lastCodedDate).toLocaleDateString()}` : ""}</div>
               </div>
