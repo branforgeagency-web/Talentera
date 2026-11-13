@@ -348,7 +348,7 @@ const LIVE_CHART_EXEMPT_DOMAINS = ["Medical Billing", "AR Calling", "Accounts Re
 
 export function isLiveChartExemptDomain(candidate) {
   const domain = candidate?.stage2?.domain || "";
-  return LIVE_CHART_EXEMPT_DOMAINS.includes(domain);
+  return LIVE_CHART_EXEMPT_DOMAINS.includes(domain) || /billing|biller|ar caller|ar calling|accounts? receivable|eligibility|verification/i.test(domain);
 }
 
 // Stage 06 is optional/removed for a candidate who is either self-trained (no live employer

@@ -93,7 +93,8 @@ function isSelfTrainedCandidate(candidate) {
 // and backend/utils/verificationScore.js.
 const LIVE_CHART_EXEMPT_DOMAINS = ["Medical Billing", "AR Calling", "Accounts Receivable", "Eligibility & Verification"];
 function isLiveChartExemptDomain(candidate) {
-  return LIVE_CHART_EXEMPT_DOMAINS.includes((candidate && candidate.stage2 && candidate.stage2.domain) || "");
+  const domain = (candidate && candidate.stage2 && candidate.stage2.domain) || "";
+  return LIVE_CHART_EXEMPT_DOMAINS.includes(domain) || /billing|biller|ar caller|ar calling|accounts? receivable|eligibility|verification/i.test(domain);
 }
 
 // A candidate must hold a verification score of at least 75% before they're
@@ -1407,6 +1408,13 @@ router.post("/stage/:n/skip", async (req, res) => {
 
   if (stageNum > 1 && !candidate.completedStages.includes(1)) {
     return res.status(400).json({ message: "You must complete and save Stage 1 (Identity & Basics) before skipping higher stages." });
+  }
+  // Freshers: Stages 1-3 (Identity, Training, Certification) are mandatory; only 4-7 may be skipped and filled in later.
+  if (!isExperiencedCandidate(candidate)) {
+    const missing = [2, 3].filter((n) => !candidate.completedStages.includes(n));
+    if (missing.length) {
+      return res.status(400).json({ message: `Complete Stage ${missing.join(" and Stage ")} before skipping later stages. Stages 1-3 are mandatory.` });
+    }
   }
 
   if (stageNum === 5) {

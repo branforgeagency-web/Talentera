@@ -1309,6 +1309,22 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
   }
 
   // Save Stage 7 Data to MongoDB
+  // Stage 7 is optional for now: skip it and fill the resume later from the dashboard.
+  const [skipping7, setSkipping7] = useState(false);
+  async function handleSkipStage7() {
+    setSkipping7(true);
+    try {
+      const res = await api.post("/candidate/stage/7/skip");
+      toast("Resume skipped for now. You can complete it anytime from your dashboard.", "✓");
+      if (onSaved) onSaved(res.data, { advance: false, nextStage: null });
+      if (onGoToDashboard) onGoToDashboard();
+    } catch (err) {
+      toast(err.response?.data?.message || "Could not skip Stage 07. Please try again.", "!");
+    } finally {
+      setSkipping7(false);
+    }
+  }
+
   async function handleSaveAndAdvance(advanceToStage8 = true) {
     if (advanceToStage8 && (!careerObjective || careerObjective.trim().length < 5)) {
       setFormErrors({ careerObjective: "Career Objective is mandatory (minimum 5 characters)." });
@@ -2698,6 +2714,9 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
               </button>
               <button type="button" onClick={() => handleSaveAndAdvance(true)} disabled={saving} className="s7-action-btn">
                 {saving ? "Saving..." : "Save Resume"}
+              </button>
+              <button type="button" onClick={handleSkipStage7} disabled={saving || skipping7} className="s7-link-btn" title="Skip the resume for now. You can come back and complete it anytime.">
+                {skipping7 ? "Skipping..." : "Skip for now & fill later"}
               </button>
             </div>
           </div>
