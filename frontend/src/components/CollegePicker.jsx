@@ -7,7 +7,7 @@ import { loadColleges, searchColleges, searchLocations } from "../utils/collegeD
  *  mode="location" → searches districts (optionally within `state`); onPick({district, state})
  * Free text is always allowed (value/onChange), so a college that is not in the list can still be typed.
  */
-export default function CollegePicker({ mode = "college", value, onChange, onPick, state = "", placeholder, inputStyle, className, required, disabled }) {
+export default function CollegePicker({ mode = "college", value, onChange, onPick, onOther, state = "", placeholder, inputStyle, className, required, disabled }) {
   const [data, setData] = useState(null);
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(-1);
@@ -67,6 +67,14 @@ export default function CollegePicker({ mode = "college", value, onChange, onPic
       />
       {open && (
         <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#fff", border: "1.5px solid #CBD5E1", borderRadius: 10, boxShadow: "0 8px 24px rgba(15,23,42,0.18)", zIndex: 9999, maxHeight: 280, overflowY: "auto", textAlign: "left" }}>
+          {mode === "college" && onOther && (
+            <div
+              onMouseDown={(e) => { e.preventDefault(); setOpen(false); onOther(); }}
+              style={{ padding: "9px 14px", fontSize: 13.5, color: "#1D4ED8", cursor: "pointer", background: "#EFF6FF", borderBottom: "1px solid #DBEAFE", fontWeight: 700, position: "sticky", top: 0 }}
+            >
+              ✏️ Other - my college isn't listed (enter manually)
+            </div>
+          )}
           {!data && <div style={{ padding: "10px 14px", fontSize: 13, color: "#64748B" }}>{failed ? "List unavailable — type it manually." : "Loading list…"}</div>}
           {data && results.length === 0 && (
             <div style={{ padding: "10px 14px", fontSize: 13, color: "#334155" }}>

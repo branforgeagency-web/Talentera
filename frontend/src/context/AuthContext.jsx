@@ -36,8 +36,8 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false));
   }, []);
 
-  async function register(email, password, mobile, accessToken, inviteToken) {
-    const res = await api.post("/auth/register", { email, password, mobile, accessToken, inviteToken });
+  async function register(email, password, mobile, accessToken, inviteToken, candidateType) {
+    const res = await api.post("/auth/register", { email, password, mobile, accessToken, inviteToken, candidateType });
     localStorage.setItem("talentera_token", res.data.token);
     setCandidate(res.data.candidate);
     return res.data.candidate;
@@ -57,6 +57,18 @@ export function AuthProvider({ children }) {
     return res.data.candidate;
   }
 
+  async function switchProfile(type) {
+    const res = await api.post("/candidate/profile/switch", { type });
+    setCandidate(res.data.candidate);
+    return res.data.candidate;
+  }
+
+  async function addProfile(type) {
+    const res = await api.post("/candidate/profile/add", { type });
+    setCandidate(res.data.candidate);
+    return res.data.candidate;
+  }
+
   function logout() {
     localStorage.removeItem("talentera_token");
     localStorage.removeItem("talentera_candidate_info");
@@ -65,7 +77,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ candidate, setCandidate, loading, register, login, demoLogin, logout }}>
+    <AuthContext.Provider value={{ candidate, setCandidate, loading, register, login, demoLogin, logout, switchProfile, addProfile }}>
       {children}
     </AuthContext.Provider>
   );

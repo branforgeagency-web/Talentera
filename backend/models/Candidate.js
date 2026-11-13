@@ -38,6 +38,17 @@ const CandidateSchema = new mongoose.Schema(
       trim: true,
     },
 
+    // Chosen at signup: decides which candidate dashboard opens after login
+    // ("fresher" -> /dashboard/fresher, "experienced" -> /dashboard/experienced).
+    // Accounts created before this field existed have null here; the toJSON
+    // transform below derives it from stage1.experience so they still route
+    // to the correct dashboard.
+    candidateType: {
+      type: String,
+      enum: ["fresher", "experienced", null],
+      default: null,
+    },
+
     isVerified: {
       type: Boolean,
       default: false,
@@ -51,6 +62,14 @@ const CandidateSchema = new mongoose.Schema(
       type: [Number],
       default: [],
     },
+
+    // Set when a Fresher account later registers as Experienced with the same e-mail (utils/fresherToExperienced.js):
+    // candidateTypes lists the profiles the account has; candidateType is the ACTIVE one and the top-level stage fields hold the active profile, while profiles[type] stashes the inactive one.
+    candidateTypes: { type: [String], default: [] },
+    profiles: { type: mongoose.Schema.Types.Mixed, default: null },
+
+    // Experienced Career Passport (8 stages). See utils/experiencedPassport.js for the shape.
+    experienced: { type: mongoose.Schema.Types.Mixed, default: null },
 
     // Stage 1: Basic Info (identity)
     stage1: {
@@ -277,6 +296,12 @@ const CandidateSchema = new mongoose.Schema(
 CandidateSchema.set("toJSON", {
   transform: (_doc, ret) => {
     delete ret.passwordHash;
+    delete ret.profiles; // inactive profile copies stay server-side
+    if (!ret.candidateType) {
+      ret.candidateType = /exp/i.test(String((ret.stage1 && ret.stage1.experience) || ""))
+        ? "experienced"
+        : "fresher";
+    }
     return ret;
   },
 });

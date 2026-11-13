@@ -1,0 +1,1275 @@
+[
+ {
+  "num": 1,
+  "name": "Identity & Career Status",
+  "icon": "ID",
+  "purpose": "Verify who the candidate is and capture current employment availability.",
+  "sections": [
+   {
+    "id": "upload-your-documents",
+    "title": "Upload Your Documents",
+    "desc": "Enter your ID numbers and upload the documents below. Aadhaar and PAN numbers are stored masked - only the last 4 characters are kept.",
+    "kind": "docslots",
+    "numbers": [
+     {
+      "key": "aadhaarNumber",
+      "label": "Aadhaar Card Number",
+      "placeholder": "12-digit Aadhaar number",
+      "required": true
+     },
+     {
+      "key": "panNumber",
+      "label": "PAN Number",
+      "placeholder": "e.g., ABCDE1234F",
+      "required": true
+     }
+    ],
+    "slots": [
+     {
+      "key": "aadhaarCard",
+      "label": "Aadhaar Card",
+      "required": true
+     },
+     {
+      "key": "panCard",
+      "label": "PAN Card",
+      "required": true
+     },
+     {
+      "key": "updatedResume",
+      "label": "Updated Resume",
+      "required": true
+     },
+     {
+      "key": "currentOfferLetter",
+      "label": "Current / Latest Offer Letter",
+      "required": true
+     },
+     {
+      "key": "previousRelievingLetter",
+      "label": "Previous Company Relieving Letter",
+      "required": true,
+      "naKey": "noPreviousCompany",
+      "naLabel": "I have no previous company"
+     },
+     {
+      "key": "experienceLetters",
+      "label": "Experience Letters",
+      "required": false,
+      "hint": "If available"
+     },
+     {
+      "key": "provisionalCertificate",
+      "label": "Provisional Certificate",
+      "required": false,
+      "hint": "Optional"
+     },
+     {
+      "key": "trainingCertificate",
+      "label": "Training Certificate",
+      "required": false,
+      "hint": "Non mandatory"
+     }
+    ]
+   },
+   {
+    "title": "Personal & Contact",
+    "desc": "Auto-extracted from resume / ID wherever available.",
+    "kind": "fields",
+    "repeatable": false,
+    "fields": [
+     {
+      "key": "fullName",
+      "label": "Full Name",
+      "type": "text",
+      "source": "auto",
+      "placeholder": "e.g., Priya Raman",
+      "required": true
+     },
+     {
+      "key": "dateOfBirth",
+      "label": "Date of Birth",
+      "type": "date",
+      "source": "auto",
+      "required": true
+     },
+     {
+      "key": "gender",
+      "label": "Gender",
+      "type": "select",
+      "source": "auto",
+      "options": [
+       "Male",
+       "Female",
+       "Prefer not to say",
+       "Other"
+      ],
+      "required": true
+     },
+     {
+      "key": "profilePhoto",
+      "label": "Profile Photo",
+      "type": "file",
+      "source": "manual"
+     },
+     {
+      "key": "mobileNumber",
+      "label": "Mobile Number",
+      "type": "tel",
+      "source": "manual",
+      "placeholder": "OTP verified mobile",
+      "required": true
+     },
+     {
+      "key": "email",
+      "label": "Email ID",
+      "type": "email",
+      "source": "manual",
+      "placeholder": "Verified email",
+      "required": true
+     },
+     {
+      "key": "whatsappNumber",
+      "label": "WhatsApp Number",
+      "type": "tel",
+      "source": "manual",
+      "placeholder": "Same as mobile if applicable"
+     },
+     {
+      "key": "governmentIdType",
+      "label": "Government ID Type",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Aadhaar"
+      ],
+      "required": true
+     },
+     {
+      "key": "governmentIdNumber",
+      "label": "Government ID Number",
+      "type": "text",
+      "source": "manual",
+      "placeholder": "e.g., 12-digit Aadhaar / Passport No."
+     },
+     {
+      "key": "idRegisteredMobile",
+      "label": "Registered Mobile Number",
+      "type": "tel",
+      "source": "manual",
+      "placeholder": "Mobile linked with ID for OTP"
+     },
+     {
+      "key": "isGovtIdVerified",
+      "label": "ID Verified",
+      "type": "text",
+      "source": "system"
+     },
+     {
+      "key": "maskedGovtId",
+      "label": "Masked ID",
+      "type": "text",
+      "source": "system"
+     }
+    ],
+    "id": "personal-contact"
+   },
+   {
+    "title": "Current Career Status",
+    "desc": "These are current intent/status fields and should be candidate-confirmed.",
+    "kind": "fields",
+    "repeatable": false,
+    "fields": [
+     {
+      "key": "currentEmploymentStatus",
+      "label": "Current Employment Status",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Currently Employed",
+       "Serving Notice Period",
+       "Recently Relieved",
+       "Not Currently Working",
+       "Career Break"
+      ],
+      "required": true
+     },
+     {
+      "key": "currentCompany",
+      "label": "Current Company",
+      "type": "text",
+      "source": "auto",
+      "placeholder": "Search / enter company"
+     },
+     {
+      "key": "currentDesignation",
+      "label": "Current Designation",
+      "type": "text",
+      "source": "auto",
+      "placeholder": "e.g., Senior Medical Coder"
+     },
+     {
+      "key": "primaryCareerCategory",
+      "label": "Primary Career Category",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Medical Coding",
+       "Medical Billing",
+       "AR",
+       "Denial Management",
+       "Payment Posting",
+       "Charge Entry",
+       "HCC / Risk Adjustment",
+       "Prior Authorization",
+       "Eligibility Verification",
+       "Credentialing",
+       "QA / Audit",
+       "Training",
+       "Team Management",
+       "Other"
+      ],
+      "required": true
+     },
+     {
+      "key": "careerAvailability",
+      "label": "Career Availability",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Actively Looking",
+       "Open to Opportunities",
+       "Not Looking Currently",
+       "Available Immediately",
+       "Available After Notice Period"
+      ],
+      "required": true
+     },
+     {
+      "key": "noticePeriod",
+      "label": "Do you have a Notice Period?",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Yes",
+       "No"
+      ]
+     },
+     {
+      "key": "noticePeriodDays",
+      "label": "How many days?",
+      "type": "number",
+      "source": "manual",
+      "placeholder": "Enter number of days, e.g., 30"
+     },
+     {
+      "key": "preferredWorkLocation",
+      "label": "Preferred Work Location",
+      "type": "text",
+      "source": "manual",
+      "placeholder": "Multi-select locations",
+      "required": true
+     },
+     {
+      "key": "preferredWorkMode",
+      "label": "Preferred Work Mode",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Work from Office",
+       "Hybrid",
+       "Remote",
+       "Any"
+      ],
+      "required": true
+     }
+    ],
+    "id": "current-career-status"
+   }
+  ]
+ },
+ {
+  "num": 2,
+  "name": "Education, Training & Foundation",
+  "icon": "EDU",
+  "purpose": "Capture academic base and how the candidate entered the RCM / healthcare career.",
+  "sections": [
+   {
+    "title": "Education",
+    "desc": "Can be extracted from resume and confirmed.",
+    "kind": "fields",
+    "repeatable": false,
+    "fields": [
+     {
+      "key": "highestQualification",
+      "label": "Highest Qualification",
+      "type": "select",
+      "source": "auto",
+      "options": [
+       "Diploma",
+       "UG",
+       "PG",
+       "Doctorate",
+       "Other"
+      ],
+      "required": true
+     },
+     {
+      "key": "degreeCourse",
+      "label": "Degree / Course",
+      "type": "text",
+      "source": "auto",
+      "placeholder": "e.g., B.Pharm",
+      "required": true
+     },
+     {
+      "key": "specialization",
+      "label": "Specialization",
+      "type": "text",
+      "source": "auto",
+      "placeholder": "Branch / subject"
+     },
+     {
+      "key": "collegeName",
+      "label": "College Name",
+      "type": "text",
+      "source": "auto",
+      "placeholder": "Institution name",
+      "required": true
+     },
+     {
+      "key": "university",
+      "label": "University",
+      "type": "text",
+      "source": "auto",
+      "placeholder": "University name"
+     },
+     {
+      "key": "yearOfPassing",
+      "label": "Year of Passing",
+      "type": "number",
+      "source": "auto",
+      "placeholder": "YYYY",
+      "required": true
+     },
+     {
+      "key": "percentageCgpa",
+      "label": "Percentage / CGPA",
+      "type": "text",
+      "source": "auto",
+      "placeholder": "Academic score"
+     },
+     {
+      "key": "educationMode",
+      "label": "Education Mode",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Regular",
+       "Distance",
+       "Online",
+       "Other"
+      ]
+     }
+    ],
+    "id": "education"
+   },
+   {
+    "title": "Academy / Training",
+    "desc": "Not everyone trains at an academy - many enter RCM through campus placements, referrals or on-the-job. Choose Not Applicable to skip this section.",
+    "id": "training-applicability",
+    "kind": "fields",
+    "repeatable": false,
+    "fields": [
+     {
+      "key": "attendedAcademyTraining",
+      "label": "Did you attend any academy / formal training?",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Yes",
+       "Not Applicable"
+      ]
+     }
+    ]
+   },
+   {
+    "title": "Training / Academy History",
+    "desc": "Allow multiple training entries.",
+    "kind": "fields",
+    "repeatable": true,
+    "fields": [
+     {
+      "key": "academyTrainingProvider",
+      "label": "Academy / Training Provider",
+      "type": "text",
+      "source": "auto",
+      "placeholder": "Academy name"
+     },
+     {
+      "key": "branchLocation",
+      "label": "Branch / Location",
+      "type": "text",
+      "source": "auto",
+      "placeholder": "Academy branch"
+     },
+     {
+      "key": "courseName",
+      "label": "Course Name",
+      "type": "text",
+      "source": "auto",
+      "placeholder": "Course / program"
+     },
+     {
+      "key": "primaryDomain",
+      "label": "Primary Domain",
+      "type": "text",
+      "source": "auto",
+      "placeholder": "e.g., Medical Coding"
+     },
+     {
+      "key": "secondaryDomain",
+      "label": "Secondary Domain",
+      "type": "text",
+      "source": "manual",
+      "placeholder": "Optional"
+     },
+     {
+      "key": "trainingMode",
+      "label": "Training Mode",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Classroom",
+       "Online",
+       "Hybrid",
+       "Corporate",
+       "Self-learning"
+      ]
+     },
+     {
+      "key": "courseStartDate",
+      "label": "Course Start Date",
+      "type": "date",
+      "source": "auto"
+     },
+     {
+      "key": "courseCompletionDate",
+      "label": "Course Completion Date",
+      "type": "date",
+      "source": "auto"
+     },
+     {
+      "key": "trainingDuration",
+      "label": "Training Duration",
+      "type": "text",
+      "source": "manual",
+      "placeholder": "e.g., 3 months, 6 months"
+     }
+    ],
+    "id": "training-academy-history"
+   }
+  ]
+ },
+ {
+  "num": 3,
+  "name": "Employment Timeline",
+  "icon": "EXP",
+  "purpose": "Build a company-wise verified employment timeline and calculate total experience automatically.",
+  "sections": [
+   {
+    "title": "Upload Employment Proof",
+    "desc": "Use offer letters, experience letters, relieving letters and payslips to prefill employment records.",
+    "kind": "docs",
+    "id": "upload-employment-proof"
+   },
+   {
+    "title": "Current / Previous Employment Entry",
+    "desc": "Add one company at a time. Duration should be auto-calculated.",
+    "kind": "fields",
+    "repeatable": true,
+    "fields": [
+     {
+      "key": "companyName",
+      "label": "Company Name",
+      "type": "text",
+      "source": "auto",
+      "placeholder": "Employer name",
+      "required": true
+     },
+     {
+      "key": "companyLocation",
+      "label": "Company Location",
+      "type": "text",
+      "source": "auto",
+      "placeholder": "City / Country"
+     },
+     {
+      "key": "department",
+      "label": "Department",
+      "type": "text",
+      "source": "auto",
+      "placeholder": "Department"
+     },
+     {
+      "key": "designation",
+      "label": "Designation",
+      "type": "text",
+      "source": "auto",
+      "placeholder": "Job title",
+      "required": true
+     },
+     {
+      "key": "domainProcessHandled",
+      "label": "Domain / Process Handled",
+      "type": "text",
+      "source": "auto",
+      "placeholder": "e.g., Medical Coding, Inpatient DRG, Denial Management, AR Calling"
+     },
+     {
+      "key": "employmentType",
+      "label": "Employment Type",
+      "type": "select",
+      "source": "auto",
+      "options": [
+       "Full-time",
+       "Part-time",
+       "Contract",
+       "Internship",
+       "Consultant",
+       "Other"
+      ],
+      "required": true
+     },
+     {
+      "key": "dateOfJoining",
+      "label": "Date of Joining",
+      "type": "date",
+      "source": "auto",
+      "required": true
+     },
+     {
+      "key": "currentlyWorkingHere",
+      "label": "Currently Working Here",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Yes",
+       "No"
+      ],
+      "required": true
+     },
+     {
+      "key": "lastWorkingDate",
+      "label": "Last Working Date",
+      "type": "date",
+      "source": "auto"
+     },
+     {
+      "key": "employmentDuration",
+      "label": "Total Employment Duration",
+      "type": "text",
+      "source": "auto",
+      "placeholder": "Auto-calculated from dates"
+     },
+     {
+      "key": "reasonForLeaving",
+      "label": "Reason for Leaving",
+      "type": "text",
+      "source": "manual",
+      "placeholder": "Optional"
+     },
+     {
+      "key": "rolesResponsibilities",
+      "label": "Roles & Responsibilities",
+      "type": "textarea",
+      "source": "auto",
+      "placeholder": "Summarize key responsibilities"
+     },
+     {
+      "key": "hasCareerGap",
+      "label": "Career Gap",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "No",
+       "Yes"
+      ],
+      "required": false
+     },
+     {
+      "key": "careerGapDuration",
+      "label": "Exact Gap Duration",
+      "type": "text",
+      "source": "manual",
+      "placeholder": "e.g., 6 months, 1 year",
+      "required": false
+     },
+     {
+      "key": "careerGapReason",
+      "label": "Reason for Career Gap",
+      "type": "text",
+      "source": "manual",
+      "placeholder": "e.g., Higher studies, Family reasons, Medical, Relocation",
+      "required": false
+     }
+    ],
+    "id": "current-previous-employment-entry"
+   },
+   {
+    "title": "System Calculations",
+    "desc": "Calculated from employment dates, not manually typed.",
+    "kind": "summary",
+    "items": [
+     "Total Professional Experience",
+     "Relevant RCM Experience",
+     "Current Employer",
+     "Employment Verification"
+    ],
+    "id": "system-calculations"
+   }
+  ]
+ },
+ {
+  "num": 4,
+  "name": "RCM Domain & Technical Expertise",
+  "icon": "RCM",
+  "purpose": "Capture what the candidate actually does inside RCM, by process, specialty and tools.",
+  "sections": [
+   {
+    "title": "Domain & Process Experience",
+    "desc": "Select all applicable areas.",
+    "kind": "chips",
+    "key": "domains",
+    "options": [
+     "Medical Coding",
+     "Medical Billing",
+     "AR",
+     "Denial Management",
+     "Payment Posting",
+     "Charge Entry",
+     "Eligibility Verification",
+     "Prior Authorization",
+     "Credentialing",
+     "HCC / Risk Adjustment",
+     "QA / Audit",
+     "Training"
+    ],
+    "id": "domain-process-experience"
+   },
+   {
+    "title": "Technical Expertise",
+    "desc": "Structured fields for recruiter filtering.",
+    "kind": "fields",
+    "repeatable": false,
+    "fields": [
+     {
+      "key": "primaryDomain",
+      "label": "Primary Domain",
+      "type": "text",
+      "source": "manual",
+      "placeholder": "Main domain",
+      "required": true
+     },
+     {
+      "key": "secondaryDomain",
+      "label": "Secondary Domain",
+      "type": "text",
+      "source": "manual",
+      "placeholder": "Optional"
+     },
+     {
+      "key": "previousCurrentDomain",
+      "label": "Previous / Current Domain",
+      "type": "text",
+      "source": "manual",
+      "placeholder": "e.g., Current: Medical Coding, Previous: AR / Billing"
+     },
+     {
+      "key": "specialtyHandled",
+      "label": "Specialty Handled",
+      "type": "text",
+      "source": "manual",
+      "placeholder": "e.g., Surgery, Radiology, E/M"
+     },
+     {
+      "key": "usHealthcareExperience",
+      "label": "US Healthcare Experience",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Yes",
+       "No"
+      ],
+      "required": true
+     },
+     {
+      "key": "domesticInternationalProcess",
+      "label": "Domestic / International Process",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Domestic",
+       "International",
+       "Both"
+      ]
+     },
+     {
+      "key": "clientPayerProviderExposure",
+      "label": "Client / Payer / Provider Exposure",
+      "type": "textarea",
+      "source": "manual",
+      "placeholder": "Medicare, BCBS, hospitals, etc."
+     },
+     {
+      "key": "softwareToolsUsed",
+      "label": "Software / Tools Used",
+      "type": "text",
+      "source": "manual",
+      "placeholder": "Epic, Cerner, 3M, Encoder, Optum..."
+     },
+     {
+      "key": "yearsInCurrentDomain",
+      "label": "Years in Current Domain",
+      "type": "number",
+      "source": "manual",
+      "placeholder": "Years"
+     }
+    ],
+    "id": "technical-expertise"
+   }
+  ]
+ },
+ {
+  "num": 5,
+  "name": "Performance, Leadership & Achievements",
+  "icon": "PER",
+  "purpose": "Capture how well the candidate performs, not only where they worked.",
+  "sections": [
+   {
+    "title": "Performance Metrics",
+    "desc": "Fields should change dynamically by selected RCM process.",
+    "kind": "fields",
+    "repeatable": false,
+    "fields": [
+     {
+      "key": "dailyProductivity",
+      "label": "Daily Productivity",
+      "type": "text",
+      "source": "manual",
+      "placeholder": "Charts / Claims / Accounts / Calls per day"
+     },
+     {
+      "key": "monthlyTarget",
+      "label": "Monthly Target",
+      "type": "text",
+      "source": "manual",
+      "placeholder": "Target value"
+     },
+     {
+      "key": "qualityScorePct",
+      "label": "Quality Score %",
+      "type": "number",
+      "source": "manual",
+      "placeholder": "e.g., 98"
+     },
+     {
+      "key": "accuracyPct",
+      "label": "Accuracy %",
+      "type": "number",
+      "source": "manual",
+      "placeholder": "e.g., 97.5"
+     },
+     {
+      "key": "auditScorePct",
+      "label": "Audit Score %",
+      "type": "number",
+      "source": "manual",
+      "placeholder": "Optional"
+     },
+     {
+      "key": "errorRatePct",
+      "label": "Error Rate %",
+      "type": "number",
+      "source": "manual",
+      "placeholder": "Optional"
+     },
+     {
+      "key": "clientFeedback",
+      "label": "Client Feedback",
+      "type": "textarea",
+      "source": "manual",
+      "placeholder": "Optional comments / rating"
+     },
+     {
+      "key": "processImprovementContribution",
+      "label": "Process Improvement Contribution",
+      "type": "textarea",
+      "source": "manual",
+      "placeholder": "Describe measurable improvement"
+     }
+    ],
+    "id": "performance-metrics"
+   },
+   {
+    "title": "Leadership & Achievements",
+    "desc": "Capture career progression and leadership exposure.",
+    "kind": "fields",
+    "repeatable": false,
+    "fields": [
+     {
+      "key": "handledATeam",
+      "label": "Handled a Team?",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Yes",
+       "No"
+      ]
+     },
+     {
+      "key": "teamSize",
+      "label": "Team Size",
+      "type": "number",
+      "source": "manual",
+      "placeholder": "Number of people"
+     },
+     {
+      "key": "leadershipRole",
+      "label": "Leadership Role",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "SME",
+       "QA / Auditor",
+       "Trainer",
+       "Team Lead",
+       "Assistant Manager",
+       "Manager",
+       "Other"
+      ]
+     },
+     {
+      "key": "yearsOfLeadershipExperience",
+      "label": "Years of Leadership Experience",
+      "type": "number",
+      "source": "manual",
+      "placeholder": "Years"
+     },
+     {
+      "key": "promotions",
+      "label": "Promotions",
+      "type": "textarea",
+      "source": "manual",
+      "placeholder": "Promotion history"
+     },
+     {
+      "key": "awardsRecognition",
+      "label": "Awards & Recognition",
+      "type": "textarea",
+      "source": "manual",
+      "placeholder": "Employee of month, quality award, etc."
+     }
+    ],
+    "id": "leadership-achievements"
+   }
+  ]
+ },
+ {
+  "num": 6,
+  "name": "Certifications & Professional Credentials",
+  "icon": "CERT",
+  "purpose": "Capture and verify professional certifications and continuing credentials.",
+  "sections": [
+   {
+    "title": "Add Certification",
+    "desc": "Each certification should be stored as a separate credential card.",
+    "kind": "fields",
+    "repeatable": true,
+    "fields": [
+     {
+      "key": "certificationCategory",
+      "label": "Certification Category",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Medical Coding",
+       "Specialty Coding",
+       "Medical Billing",
+       "RCM",
+       "Leadership",
+       "Other"
+      ]
+     },
+     {
+      "key": "certificationCode",
+      "label": "Certification Code",
+      "type": "text",
+      "source": "auto",
+      "placeholder": "e.g., CPC, CCS"
+     },
+     {
+      "key": "certificationName",
+      "label": "Certification Name",
+      "type": "text",
+      "source": "auto",
+      "placeholder": "CPC / CIC / CCS / CRC / CPB / etc.",
+      "required": true
+     },
+     {
+      "key": "issuingOrganization",
+      "label": "Issuing Organization",
+      "type": "select",
+      "source": "auto",
+      "options": [
+       "AAPC",
+       "AHIMA",
+       "HIMAA",
+       "Specialty",
+       "HFMA",
+       "AAHAM",
+       "NHA",
+       "AMBA",
+       "NAHAM",
+       "NAMSS",
+       "IACMC",
+       "AAPC (KSA specific)",
+       "TESDA",
+       "IHACPA",
+       "CHIMA / CCHIM",
+       "IHRIM / NHS",
+       "Local / MOH + HIMAA",
+       "SAQA / Colleges",
+       "IHK",
+       "TÜV Rheinland",
+       "Private Academies",
+       "GMDS / GI / BVMI",
+       "AAPC + SBAIS",
+       "Thai Health Coding Centre / MOPH",
+       "MHLW / Hospital DPC",
+       "ATIH / Hospital DIM",
+       "HPO",
+       "Kiwa / Zorginfostraat / Amstelacademie",
+       "Hospital / National system",
+       "AHCC / BMSC",
+       "WellSky",
+       "Other"
+      ],
+      "required": true
+     },
+     {
+      "key": "certificationId",
+      "label": "Certification ID",
+      "type": "text",
+      "source": "auto",
+      "placeholder": "Credential number"
+     },
+     {
+      "key": "issueDate",
+      "label": "Issue Date",
+      "type": "date",
+      "source": "auto"
+     },
+     {
+      "key": "expiryDate",
+      "label": "Expiry Date",
+      "type": "date",
+      "source": "auto"
+     },
+     {
+      "key": "noExpiry",
+      "label": "No Expiry",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "No",
+       "Yes"
+      ]
+     },
+     {
+      "key": "certificationStatus",
+      "label": "Certification Status",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Active",
+       "Expired",
+       "In Progress"
+      ],
+      "required": true
+     },
+     {
+      "key": "specialization",
+      "label": "Specialization",
+      "type": "text",
+      "source": "manual",
+      "placeholder": "Relevant specialty"
+     },
+     {
+      "key": "certificateUpload",
+      "label": "Certificate Upload",
+      "type": "file",
+      "source": "manual"
+     },
+     {
+      "key": "credentialUrl",
+      "label": "Credential URL",
+      "type": "url",
+      "source": "manual",
+      "placeholder": "Optional verification link"
+     }
+    ],
+    "id": "add-certification"
+   },
+   {
+    "title": "CEU / Continuing Education",
+    "desc": "Optional professional maintenance tracking.",
+    "kind": "fields",
+    "repeatable": false,
+    "fields": [
+     {
+      "key": "ceuRequired",
+      "label": "CEU Required",
+      "type": "number",
+      "source": "manual",
+      "placeholder": "Total required"
+     },
+     {
+      "key": "ceuCompleted",
+      "label": "CEU Completed",
+      "type": "number",
+      "source": "manual",
+      "placeholder": "Completed credits"
+     },
+     {
+      "key": "cycleStartDate",
+      "label": "Cycle Start Date",
+      "type": "date",
+      "source": "manual"
+     },
+     {
+      "key": "cycleEndDate",
+      "label": "Cycle End Date",
+      "type": "date",
+      "source": "manual"
+     }
+    ],
+    "id": "ceu-continuing-education"
+   }
+  ]
+ },
+ {
+  "num": 7,
+  "name": "Career Documents & Future Preferences",
+  "icon": "DOC",
+  "purpose": "Store career evidence and capture what the candidate wants next.",
+  "sections": [
+   {
+    "title": "Career Documents",
+    "desc": "Central professional document vault.",
+    "kind": "fields",
+    "repeatable": false,
+    "fields": [
+     {
+      "key": "latestResume",
+      "label": "Latest Resume",
+      "type": "file",
+      "source": "manual"
+     },
+     {
+      "key": "offerLetter",
+      "label": "Offer Letter",
+      "type": "file",
+      "source": "manual"
+     },
+     {
+      "key": "experienceLetter",
+      "label": "Experience Letter",
+      "type": "file",
+      "source": "manual"
+     },
+     {
+      "key": "relievingLetter",
+      "label": "Relieving Letter",
+      "type": "file",
+      "source": "manual"
+     },
+     {
+      "key": "latestPayslip",
+      "label": "Latest Payslip",
+      "type": "file",
+      "source": "manual"
+     },
+     {
+      "key": "otherSupportingDocument",
+      "label": "Other Supporting Document",
+      "type": "file",
+      "source": "manual"
+     }
+    ],
+    "id": "career-documents"
+   },
+   {
+    "title": "Future Career Preferences",
+    "desc": "Used for job matching and career recommendations.",
+    "kind": "fields",
+    "repeatable": false,
+    "fields": [
+     {
+      "key": "preferredNextDomain",
+      "label": "Preferred Next Domain",
+      "type": "text",
+      "source": "manual",
+      "placeholder": "Next domain"
+     },
+     {
+      "key": "preferredProcess",
+      "label": "Preferred Process",
+      "type": "text",
+      "source": "manual",
+      "placeholder": "Preferred process"
+     },
+     {
+      "key": "preferredDesignation",
+      "label": "Preferred Designation",
+      "type": "text",
+      "source": "manual",
+      "placeholder": "Target role"
+     },
+     {
+      "key": "expectedSalaryCtc",
+      "label": "Expected Salary / CTC",
+      "type": "text",
+      "source": "manual",
+      "placeholder": "Expected compensation"
+     },
+     {
+      "key": "preferredLocation",
+      "label": "Preferred Location",
+      "type": "text",
+      "source": "manual",
+      "placeholder": "Multi-select locations"
+     },
+     {
+      "key": "preferredWorkMode",
+      "label": "Preferred Work Mode",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Office",
+       "Hybrid",
+       "Remote",
+       "Any"
+      ]
+     },
+     {
+      "key": "availabilityToJoin",
+      "label": "Availability to Join",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Immediate",
+       "15 Days",
+       "30 Days",
+       "45 Days",
+       "60 Days",
+       "90 Days",
+       "Negotiable"
+      ]
+     },
+     {
+      "key": "careerGoal",
+      "label": "Career Goal (12–24 months)",
+      "type": "textarea",
+      "source": "manual",
+      "placeholder": "Optional career goal"
+     }
+    ],
+    "id": "future-career-preferences"
+   }
+  ]
+ },
+ {
+  "num": 8,
+  "name": "Talentera Career Passport & Review",
+  "icon": "PASS",
+  "purpose": "Review the complete experienced profile before publishing it to recruiters.",
+  "sections": [
+   {
+    "title": "Profile Review",
+    "desc": "Candidate reviews extracted, declared and verified information before publishing.",
+    "kind": "summary",
+    "items": [
+     "Identity",
+     "Education & Training",
+     "Employment Timeline",
+     "RCM Expertise",
+     "Performance",
+     "Certifications",
+     "Documents",
+     "Career Preferences"
+    ],
+    "id": "profile-review"
+   },
+   {
+    "title": "Visibility & Consent",
+    "desc": "Control how the professional profile is shown to companies.",
+    "kind": "fields",
+    "repeatable": false,
+    "fields": [
+     {
+      "key": "profileVisibility",
+      "label": "Profile Visibility",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Visible to Recruiters",
+       "Visible only to Applied Companies",
+       "Private"
+      ],
+      "required": true
+     },
+     {
+      "key": "openToOpportunities",
+      "label": "Open to Opportunities",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Yes",
+       "No"
+      ],
+      "required": true
+     },
+     {
+      "key": "allowCompaniesToRequestVerification",
+      "label": "Allow Companies to Request Verification",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Yes",
+       "No"
+      ]
+     },
+     {
+      "key": "consentToProcessProfessionalData",
+      "label": "Consent to Process Professional Data",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Agree",
+       "Do Not Agree"
+      ],
+      "required": true
+     }
+    ],
+    "id": "visibility-consent"
+   },
+   {
+    "title": "Final Actions",
+    "desc": "Publish the Career Passport after review.",
+    "kind": "final",
+    "id": "final-actions"
+   }
+  ]
+ }
+]

@@ -38,12 +38,13 @@ const AcademyBatchSchema = new mongoose.Schema(
       default: "",
     },
     capacity: { type: Number, default: null },
+    branch: { type: String, default: "", trim: true },
   },
   { timestamps: true }
 );
 
-// routes/academy.js queries every batch for the logged-in academy on every
-// dashboard load.
+// routes/academy.js queries batches for the logged-in academy
 AcademyBatchSchema.index({ academyId: 1 });
+AcademyBatchSchema.index({ academyId: 1, branch: 1 });
 
 module.exports = mongoose.model("AcademyBatch", AcademyBatchSchema);

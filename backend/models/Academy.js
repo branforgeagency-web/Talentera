@@ -98,7 +98,7 @@ const AcademySchema = new mongoose.Schema(
       default: "Coimbatore",
     },
     branches: {
-      type: [String],
+      type: [mongoose.Schema.Types.Mixed],
       default: [],
     },
     tier: {

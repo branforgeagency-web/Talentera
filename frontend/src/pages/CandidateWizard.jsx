@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import api from "../api/client";
 import { useToast } from "../components/Toast.jsx";
 import { WIZARD_STAGES, getStage, isStage6Optional, getWizardStages, isExperiencedCandidate, isLiveChartExemptDomain } from "../data/wizardStages";
@@ -13,7 +13,10 @@ import Stage5VideoPitch from "../components/wizard/Stage5VideoPitch.jsx";
 import Stage6LiveCharts from "../components/wizard/Stage6LiveCharts.jsx";
 import Stage7Resume from "../components/wizard/Stage7Resume.jsx";
 import Step9Verified from "./Step9Verified.jsx";
-import CandidateDashboard from "./CandidateDashboard.jsx";
+import FresherDashboard from "./FresherDashboard.jsx";
+import ExperiencedDashboard from "./ExperiencedDashboard.jsx";
+import { getCandidateType } from "../utils/candidateType.js";
+import ExperiencedPassportWizard from "../components/passport/ExperiencedPassportWizard.jsx";
 
 const STAGE_COMPONENTS = {
   1: Stage1Aadhaar,
@@ -36,8 +39,9 @@ export function isStageUnlocked(stageNum, completedStages = [], isSelfTrained = 
   return true;
 }
 
-export default function CandidateWizard() {
+export default function CandidateWizard({ portal } = {}) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const toast = useToast();
   const [profile, setProfile] = useState(null);
@@ -197,6 +201,14 @@ export default function CandidateWizard() {
         break;
       }
     }
+    // The candidate asked for a specific next stage but it is still locked: say why instead of
+    // silently landing back on the same page.
+    if (nextStage && nextStage > nextIncomplete) {
+      toast(
+        `Stage ${nextStage} is locked until Stage ${nextIncomplete} is completed.`,
+        { title: "Can't continue yet", type: "warning", glyph: <i className="fa-solid fa-triangle-exclamation" /> }
+      );
+    }
 
     if (completed.length < 8) {
       setActiveStageId(nextIncomplete);
@@ -240,6 +252,14 @@ export default function CandidateWizard() {
     return <div style={{ padding: 40, textAlign: "center" }}>Loading your dashboard…</div>;
   }
 
+  // Each candidate only ever sees their own dashboard: a fresher opening the experienced URL
+  // (or the other way round) is sent to the right one, keeping ?stage= / ?tab= intact.
+  const candidateType = getCandidateType(candidateObj);
+  if (portal && portal !== candidateType) {
+    return <Navigate to={`/dashboard/${candidateType}${location.search}`} replace />;
+  }
+  const PortalDashboard = candidateType === "experienced" ? ExperiencedDashboard : FresherDashboard;
+
   if (showVerifiedPool) {
     return (
       <Step9Verified
@@ -254,13 +274,28 @@ export default function CandidateWizard() {
 
   if (showDashboard) {
     return (
-      <CandidateDashboard
+      <PortalDashboard
         profile={profile}
         onEditStage={(stageNum) => {
           setActiveStageId(stageNum || 1);
           setShowDashboard(false);
           setShowVerifiedPool(false);
         }}
+      />
+    );
+  }
+
+  // Experienced candidates build their 8-stage Career Passport (own wizard, own backend routes).
+  if (candidateType === "experienced") {
+    const wantStage = Number(searchParams.get("stage")) || Number(activeStageId) || 1;
+    return (
+      <ExperiencedPassportWizard
+        key={`passport-${wantStage}`}
+        candidate={candidateObj}
+        initialStage={wantStage}
+        onChanged={(payload) => setProfile((prev) => ({ ...(prev || {}), ...payload, candidate: payload.candidate || prev?.candidate }))}
+        onBackToDashboard={Boolean(candidateObj?.isSubmitted || (candidateObj?.completedStages || []).length >= 1) ? () => setShowDashboard(true) : null}
+        onPublished={() => setShowDashboard(true)}
       />
     );
   }

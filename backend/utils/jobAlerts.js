@@ -38,7 +38,29 @@ function describeJob(fields = {}, company = {}) {
     experience,
     openings: f.openings || "",
     urgency: f.urgency || "",
+    // used only to decide who gets the email (see candidateCanSeeJob), not shown in it
+    level: String(f.level || ""),
+    expMinNum: hasExp(f.expmin) ? Number(f.expmin) : 0,
   };
+}
+
+/**
+ * Same hiring-level rule Browse Jobs applies (routes/candidate.js GET /jobs and
+ * BrowseJobsSection.jsx), so we never email someone about a job that won't be in their list:
+ *  - Experienced candidates only see "Experienced only" roles (or level-less roles asking for 1+ yrs).
+ *  - Freshers don't see "Experienced only" roles, nor level-less roles asking for 1+ yrs.
+ */
+function candidateCanSeeJob(candidate, job) {
+  const experienced =
+    candidate.candidateType === "experienced" ||
+    (!candidate.candidateType && /exp/i.test(String(candidate.stage1?.experience || "")));
+  const lvl = String(job.level || "").toLowerCase();
+  if (experienced) {
+    return lvl.includes("experienced only") || (!lvl && job.expMinNum > 0);
+  }
+  if (lvl.includes("experienced only")) return false;
+  if (lvl.includes("fresher") || lvl.includes("both")) return true;
+  return !(job.expMinNum > 0);
 }
 
 function buildEmail(job, candidate) {
@@ -81,9 +103,12 @@ async function sendToCandidates(jobInfo, label) {
       logger.info(`[JOB ALERT SKIPPED - Brevo not configured] ${label}`);
       return;
     }
-    const candidates = await Candidate.find({ jobAlertEmails: { $ne: false }, email: { $exists: true, $ne: "" } })
-      .select("email stage1.fullName stage1.preferredCities")
+    let candidates = await Candidate.find({ jobAlertEmails: { $ne: false }, email: { $exists: true, $ne: "" } })
+      .select("email candidateType stage1.fullName stage1.preferredCities stage1.experience")
       .lean();
+    const allCount = candidates.length;
+    candidates = candidates.filter((c) => candidateCanSeeJob(c, jobInfo));
+    logger.info(`Job alert "${label}": ${candidates.length} of ${allCount} candidates can see this job (hiring level: ${jobInfo.level || "not set"})`);
 
     let sent = 0;
     let failed = 0;

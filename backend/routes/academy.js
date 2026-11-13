@@ -18,8 +18,10 @@ const Notification = require("../models/Notification");
 const RetakeRequest = require("../models/RetakeRequest");
 const { sendRetakeApprovedEmail } = require("../utils/emailService");
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
+const AcademyCoordinator = require("../models/AcademyCoordinator");
 const { verifyWidgetAccessToken } = require("../utils/msg91Widget");
-const { requireAcademyAuth, signToken } = require("../middleware/auth");
+const { requireAcademyAuth, signToken, signAcademyCoordinatorToken } = require("../middleware/auth");
 const { upload, handleUpload } = require("../middleware/upload");
 const { authLimiter } = require("../middleware/rateLimit");
 const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
@@ -31,6 +33,57 @@ const DASHBOARD_FETCH_CAP = 500;
 
 // Where a student invite's signup link points. Uses https://talentera-nine.vercel.app as requested.
 const APP_URL = (process.env.APP_URL || "https://talentera-nine.vercel.app").replace(/\/$/, "");
+
+/**
+ * Dispatch credentials & activation link to a newly registered Branch Placement Coordinator.
+ */
+async function dispatchCoordinatorInvitation({ coordinator, academyName }) {
+  const token = coordinator.inviteToken || crypto.randomBytes(24).toString("hex");
+  coordinator.inviteToken = token;
+  coordinator.inviteExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+  await coordinator.save();
+
+  const activationUrl = `${APP_URL}/academy/coordinator/activate?token=${token}`;
+
+  const emailHtml = wrapEmailTemplate(
+    `Activate your Talentera Placement Coordinator Account`,
+    `
+      <p style="color: #475569; font-size: 15px; line-height: 1.5; margin-top: 0;">
+        Hello <strong>${coordinator.name}</strong>,
+      </p>
+      <p style="color: #475569; font-size: 14px; line-height: 1.5;">
+        You have been registered as the <strong>${coordinator.designation || "Placement Coordinator"}</strong> for <strong>${academyName}</strong> (${coordinator.branchName}) on the Talentera Academy Network.
+      </p>
+      <div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 16px 20px; margin: 18px 0;">
+        <p style="margin: 0 0 8px; font-size: 13.5px; color: #0F172A;"><strong>Academy:</strong> ${academyName}</p>
+        <p style="margin: 0 0 8px; font-size: 13.5px; color: #0F172A;"><strong>Branch:</strong> ${coordinator.branchName}${coordinator.branchCity ? ` (${coordinator.branchCity})` : ""}</p>
+        <p style="margin: 0 0 8px; font-size: 13.5px; color: #0F172A;"><strong>Designation:</strong> ${coordinator.designation || "Placement Coordinator"}</p>
+        <p style="margin: 0 0 8px; font-size: 13.5px; color: #0F172A;"><strong>Official Email:</strong> <code style="background: #E2E8F0; padding: 2px 6px; border-radius: 4px; font-size: 13px;">${coordinator.email}</code></p>
+        <p style="margin: 0; font-size: 13.5px; color: #0F172A;"><strong>Activation URL:</strong> <a href="${activationUrl}" style="color: #1D4ED8; word-break: break-all;">${activationUrl}</a></p>
+      </div>
+      <p style="margin: 22px 0 16px; text-align: center;">
+        <a href="${activationUrl}" style="display: inline-block; background-color: #0A1F3D; color: #ffffff; padding: 12px 24px; font-weight: 700; font-size: 14px; text-decoration: none; border-radius: 8px;">Activate Account & Set Password &rarr;</a>
+      </p>
+      <p style="color: #64748B; font-size: 12px; line-height: 1.5; margin-bottom: 0;">
+        This activation link is valid for 7 days. Once activated, you will be able to log in to access your branch-specific dashboard.
+      </p>
+    `
+  );
+
+  try {
+    await sendTransactionalEmail({
+      to: coordinator.email,
+      toName: coordinator.name,
+      subject: `Invitation: Activate Your Talentera Branch Coordinator Account for ${academyName}`,
+      html: emailHtml,
+    });
+    logger.info(`[COORDINATOR INVITE] Dispatched to ${coordinator.email}`);
+  } catch (err) {
+    logger.warn(`[COORDINATOR INVITE] Failed for ${coordinator.email}: ${err.message}`);
+  }
+
+  return { token, activationUrl };
+}
 
 // A candidate the academy added (CSV/manual/invite) who has not yet signed up
 // through the candidate dashboard: never OTP-verified, no Aadhaar eKYC, and Stage 1
@@ -428,7 +481,7 @@ async function claimNameMatchedCandidates(academy) {
   );
 }
 
-function buildAcademyCandidateFilter(academyId, academyName, invites = []) {
+function buildAcademyCandidateFilter(academyId, academyName, invites = [], branch = null) {
   const invitedEmails = invites.map((inv) => (inv.email || "").toLowerCase().trim()).filter(Boolean);
   const candidateIds = invites.map((inv) => inv.candidateId).filter(Boolean);
 
@@ -445,12 +498,24 @@ function buildAcademyCandidateFilter(academyId, academyName, invites = []) {
     ...(unclaimedNameMatch(academyName) ? [unclaimedNameMatch(academyName)] : []),
   ];
 
-  return {
+  const filter = {
     $and: [
       { $or: orConditions },
       { $or: [{ isCollegeStudent: { $ne: true } }, { "stage2.academyId": academyId.toString() }] },
     ],
   };
+
+  if (branch && typeof branch === "string" && branch.trim()) {
+    const cleanB = branch.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    filter.$and.push({
+      $or: [
+        { "stage2.branch": new RegExp(cleanB, "i") },
+        { "stage1.city": new RegExp(cleanB, "i") },
+      ],
+    });
+  }
+
+  return filter;
 }
 
 // Ownership guard: an academy may only open or act on its OWN candidates (linked by
@@ -597,9 +662,51 @@ router.post("/login", authLimiter, async (req, res) => {
     return res.status(400).json({ message: "Valid email required." });
   }
 
-  // Password-based credentials login (same flow as candidates)
+  // Password-based credentials login (Academy Head or Branch Placement Coordinator)
   if (password) {
     try {
+      // 1. Check if a Branch Placement Coordinator exists with this email
+      const coordinator = await AcademyCoordinator.findOne({ email: cleanEmail });
+      if (coordinator) {
+        if (coordinator.status === "invited") {
+          return res.status(401).json({
+            message: "Your branch coordinator account is not activated yet. Please click the invitation link sent to your email to set your password and activate your account.",
+            needsActivation: true,
+          });
+        }
+        if (coordinator.status === "suspended") {
+          return res.status(403).json({ message: "Your branch coordinator login has been suspended by your Academy Head." });
+        }
+        if (!coordinator.passwordHash) {
+          return res.status(401).json({ message: "Account has no password set. Please activate your account via your email invitation link." });
+        }
+        const isMatch = await bcrypt.compare(password, coordinator.passwordHash);
+        if (!isMatch) {
+          return res.status(401).json({ message: "Invalid email or password." });
+        }
+        coordinator.lastLoginAt = new Date();
+        await coordinator.save();
+
+        const parentAcademy = await Academy.findById(coordinator.academyId).lean();
+        const token = signAcademyCoordinatorToken(coordinator.academyId, coordinator._id, coordinator.branchName, coordinator.branchCity);
+
+        return res.json({
+          token,
+          academy: parentAcademy,
+          coordinator: {
+            _id: coordinator._id,
+            name: coordinator.name,
+            email: coordinator.email,
+            designation: coordinator.designation,
+            branchName: coordinator.branchName,
+            branchCity: coordinator.branchCity,
+            role: coordinator.role,
+          },
+          isBranchCoordinator: true,
+        });
+      }
+
+      // 2. Check Academy Head account
       const academy = await Academy.findOne({ email: cleanEmail });
       if (!academy) {
         return res.status(401).json({ message: "No academy account found with this email. Please sign up and verify your OTP first." });
@@ -618,6 +725,7 @@ router.post("/login", authLimiter, async (req, res) => {
       return res.json({
         token,
         academy,
+        isBranchCoordinator: false,
       });
     } catch (err) {
       logger.error(`Academy password login error: ${err.message}`);
@@ -886,8 +994,12 @@ router.post("/kyc/submit", requireAcademyAuth, async (req, res) => {
           state: String(b?.state || "").trim().slice(0, 80),
           phone: String(b?.phone || "").trim().slice(0, 20),
           address: String(b?.address || "").trim().slice(0, 300),
+          coordinatorName: String(b?.coordinatorName || "").trim().slice(0, 120),
+          coordinatorDesignation: String(b?.coordinatorDesignation || "Placement Coordinator").trim().slice(0, 120),
+          coordinatorEmail: String(b?.coordinatorEmail || "").toLowerCase().trim().slice(0, 120),
+          coordinatorMobile: String(b?.coordinatorMobile || b?.coordinatorPhone || "").trim().slice(0, 20),
         }))
-        .filter((b) => b.name || b.city || b.address),
+        .filter((b) => b.name || b.city || b.address || b.coordinatorName),
       accreditations: Array.isArray(accreditations) ? accreditations : [],
       courses: cleanKycCourses,
       certifiedTrainedCount: certifiedTrainedCount || "",
@@ -916,6 +1028,46 @@ router.post("/kyc/submit", requireAcademyAuth, async (req, res) => {
     else if (primarySpecialty) academy.specialty = primarySpecialty.trim();
 
     await academy.save();
+
+    // Sync Branch Placement Coordinators and dispatch invitations
+    try {
+      const savedBranches = academy.kycData?.branches || [];
+      for (const b of savedBranches) {
+        if (b.coordinatorEmail && b.coordinatorEmail.includes("@")) {
+          let coord = await AcademyCoordinator.findOne({ email: b.coordinatorEmail });
+          if (!coord) {
+            coord = await AcademyCoordinator.create({
+              academyId: academy._id,
+              branchName: b.name || `${b.city} Branch`,
+              branchCity: b.city || "",
+              branchState: b.state || "",
+              branchPhone: b.phone || "",
+              branchAddress: b.address || "",
+              name: b.coordinatorName || "Placement Coordinator",
+              designation: b.coordinatorDesignation || "Placement Coordinator",
+              email: b.coordinatorEmail,
+              mobile: b.coordinatorMobile || "",
+              role: "branch_coordinator",
+              status: "invited",
+              createdByName: academy.contactName || academy.name,
+            });
+            await dispatchCoordinatorInvitation({ coordinator: coord, academyName: academy.name });
+          } else {
+            coord.branchName = b.name || coord.branchName;
+            coord.branchCity = b.city || coord.branchCity;
+            coord.branchState = b.state || coord.branchState;
+            coord.branchAddress = b.address || coord.branchAddress;
+            coord.branchPhone = b.phone || coord.branchPhone;
+            if (b.coordinatorName) coord.name = b.coordinatorName;
+            if (b.coordinatorDesignation) coord.designation = b.coordinatorDesignation;
+            if (b.coordinatorMobile) coord.mobile = b.coordinatorMobile;
+            await coord.save();
+          }
+        }
+      }
+    } catch (cErr) {
+      logger.warn(`Failed to sync branch coordinators on KYC submit: ${cErr.message}`);
+    }
 
     // Log activity event
     try {
@@ -970,7 +1122,8 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
     await syncAcademyUploadedStage2(invites);
     await claimNameMatchedCandidates(academy);
     await repairFakeRegistrations(req.academyId);
-    const filter = buildAcademyCandidateFilter(req.academyId, academy.name, invites);
+    const targetBranch = req.branchName || req.query.branch || null;
+    const filter = buildAcademyCandidateFilter(req.academyId, academy.name, invites, targetBranch);
     const candidatesList = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
 
     const hiringMap = await require("../utils/hiringLinks").hiringSummary(candidatesList.map((c) => c._id));
@@ -1061,6 +1214,14 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
 
     // Batches
     let dbBatches = await AcademyBatch.find({ academyId: req.academyId }).lean();
+    if (targetBranch) {
+      const cleanBranch = targetBranch.toLowerCase().trim();
+      dbBatches = dbBatches.filter((b) => {
+        const bBranch = (b.branch || "").toLowerCase().trim();
+        const bCode = (b.code || "").toLowerCase().trim();
+        return bBranch.includes(cleanBranch) || cleanBranch.includes(bBranch) || bCode.includes(cleanBranch);
+      });
+    }
     let batches = dbBatches.map((b) => {
       const realEnrolledCount = formattedStudents.filter(
         (s) => s.month === b.code || (s.month && (s.month.includes(b.code) || b.code.includes(s.month)))
@@ -1152,6 +1313,15 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
       questions: academy.questions || [],
       placements: academy.placements || [],
       recentActivity,
+      isBranchCoordinator: Boolean(req.isBranchCoordinator),
+      coordinator: req.coordinator || null,
+      activeBranch: targetBranch || null,
+      availableBranches: [
+        ...new Set([
+          ...(Array.isArray(academy.branches) ? academy.branches.map((b) => (typeof b === "string" ? b : b?.name)) : []),
+          ...(Array.isArray(academy.kycData?.branches) ? academy.kycData.branches.map((b) => b.name) : []),
+        ].filter(Boolean)),
+      ],
     });
   } catch (err) {
     logger.error(`Academy dashboard error: ${err.message}`);
@@ -5641,6 +5811,345 @@ router.delete("/mous/:id", requireAcademyAuth, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ message: "Failed to remove the MoU." });
+  }
+});
+
+// ============================================================================
+// BRANCHES & PLACEMENT COORDINATOR WORKFLOW
+// ============================================================================
+
+// GET /api/academy/branches - List all branches & coordinators for this academy
+router.get("/branches", requireAcademyAuth, async (req, res) => {
+  try {
+    const academy = await Academy.findById(req.academyId).lean();
+    if (!academy) return res.status(404).json({ message: "Academy not found." });
+
+    const coordinators = await AcademyCoordinator.find({ academyId: req.academyId }).lean();
+    const coordByBranch = new Map(coordinators.map((c) => [(c.branchName || "").toLowerCase().trim(), c]));
+    const coordByEmail = new Map(coordinators.map((c) => [(c.email || "").toLowerCase().trim(), c]));
+
+    const kycBranches = academy.kycData?.branches || [];
+    const rootBranches = Array.isArray(academy.branches) ? academy.branches : [];
+
+    // Merge branches from kycData, root branches, and coordinators
+    const branchMap = new Map();
+
+    kycBranches.forEach((b) => {
+      if (typeof b === "object" && b.name) {
+        branchMap.set(b.name.toLowerCase().trim(), { ...b });
+      }
+    });
+
+    rootBranches.forEach((b) => {
+      if (typeof b === "string" && b.trim()) {
+        const key = b.trim().toLowerCase();
+        if (!branchMap.has(key)) {
+          branchMap.set(key, { name: b.trim(), city: "", state: "", phone: "", address: "" });
+        }
+      } else if (typeof b === "object" && b.name) {
+        const key = b.name.trim().toLowerCase();
+        if (!branchMap.has(key)) {
+          branchMap.set(key, { ...b });
+        }
+      }
+    });
+
+    coordinators.forEach((c) => {
+      const key = (c.branchName || "").trim().toLowerCase();
+      if (key && !branchMap.has(key)) {
+        branchMap.set(key, {
+          name: c.branchName,
+          city: c.branchCity,
+          state: c.branchState,
+          phone: c.branchPhone,
+          address: c.branchAddress,
+        });
+      }
+    });
+
+    // Gather branch statistics
+    const branchesWithDetails = await Promise.all(
+      Array.from(branchMap.values()).map(async (b) => {
+        const bName = b.name;
+        const coord = coordByBranch.get(bName.toLowerCase().trim()) || (b.coordinatorEmail ? coordByEmail.get(b.coordinatorEmail.toLowerCase().trim()) : null);
+
+        const safeBName = bName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const [studentsCount, batchesCount] = await Promise.all([
+          Candidate.countDocuments({
+            "stage2.academyId": String(req.academyId),
+            $or: [
+              { "stage2.branch": new RegExp(safeBName, "i") },
+              ...(b.city ? [{ "stage1.city": new RegExp(b.city.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") }] : []),
+            ],
+          }),
+          AcademyBatch.countDocuments({
+            academyId: req.academyId,
+            $or: [
+              { branch: new RegExp(safeBName, "i") },
+              { code: new RegExp(safeBName, "i") },
+            ],
+          }),
+        ]);
+
+        return {
+          ...b,
+          coordinator: coord
+            ? {
+                _id: coord._id,
+                name: coord.name,
+                designation: coord.designation,
+                email: coord.email,
+                mobile: coord.mobile,
+                status: coord.status,
+                activatedAt: coord.activatedAt,
+                lastLoginAt: coord.lastLoginAt,
+              }
+            : null,
+          studentsCount,
+          batchesCount,
+        };
+      })
+    );
+
+    res.json({
+      branches: branchesWithDetails,
+      totalBranches: branchesWithDetails.length,
+      isBranchCoordinator: Boolean(req.isBranchCoordinator),
+      activeBranch: req.branchName || null,
+    });
+  } catch (err) {
+    logger.error(`Get academy branches error: ${err.message}`);
+    res.status(500).json({ message: "Failed to fetch branches." });
+  }
+});
+
+// POST /api/academy/branches - Add or update a branch with coordinator details
+router.post("/branches", requireAcademyAuth, async (req, res) => {
+  try {
+    const academy = await Academy.findById(req.academyId);
+    if (!academy) return res.status(404).json({ message: "Academy not found." });
+
+    const {
+      name,
+      city,
+      state,
+      phone,
+      address,
+      coordinatorName,
+      coordinatorDesignation,
+      coordinatorEmail,
+      coordinatorMobile,
+      sendInvite = true,
+    } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ message: "Branch name is required." });
+    }
+
+    const cleanName = name.trim();
+    const cleanEmail = (coordinatorEmail || "").toLowerCase().trim();
+
+    const branchObj = {
+      name: cleanName,
+      city: (city || "").trim(),
+      state: (state || "").trim(),
+      phone: (phone || "").trim(),
+      address: (address || "").trim(),
+      coordinatorName: (coordinatorName || "").trim(),
+      coordinatorDesignation: (coordinatorDesignation || "Placement Coordinator").trim(),
+      coordinatorEmail: cleanEmail,
+      coordinatorMobile: (coordinatorMobile || "").trim(),
+    };
+
+    if (!academy.kycData) academy.kycData = {};
+    if (!Array.isArray(academy.kycData.branches)) academy.kycData.branches = [];
+
+    const existingIdx = academy.kycData.branches.findIndex(
+      (b) => String(b.name || "").toLowerCase().trim() === cleanName.toLowerCase()
+    );
+    if (existingIdx >= 0) {
+      academy.kycData.branches[existingIdx] = { ...academy.kycData.branches[existingIdx], ...branchObj };
+    } else {
+      academy.kycData.branches.push(branchObj);
+    }
+
+    if (!Array.isArray(academy.branches)) academy.branches = [];
+    const rootIdx = academy.branches.findIndex(
+      (b) => (typeof b === "string" ? b.toLowerCase().trim() : b.name?.toLowerCase().trim()) === cleanName.toLowerCase()
+    );
+    if (rootIdx >= 0) {
+      academy.branches[rootIdx] = cleanName;
+    } else {
+      academy.branches.push(cleanName);
+    }
+
+    await academy.save();
+
+    let coordinator = null;
+    let inviteDispatched = false;
+
+    if (cleanEmail && cleanEmail.includes("@")) {
+      coordinator = await AcademyCoordinator.findOne({ email: cleanEmail });
+      if (!coordinator) {
+        coordinator = await AcademyCoordinator.create({
+          academyId: academy._id,
+          branchName: cleanName,
+          branchCity: branchObj.city,
+          branchState: branchObj.state,
+          branchPhone: branchObj.phone,
+          branchAddress: branchObj.address,
+          name: coordinatorName || "Placement Coordinator",
+          designation: coordinatorDesignation || "Placement Coordinator",
+          email: cleanEmail,
+          mobile: coordinatorMobile || "",
+          role: "branch_coordinator",
+          status: "invited",
+          createdByName: academy.contactName || academy.name,
+        });
+        if (sendInvite) {
+          await dispatchCoordinatorInvitation({ coordinator, academyName: academy.name });
+          inviteDispatched = true;
+        }
+      } else {
+        coordinator.branchName = cleanName;
+        coordinator.branchCity = branchObj.city;
+        coordinator.branchState = branchObj.state;
+        coordinator.branchPhone = branchObj.phone;
+        coordinator.branchAddress = branchObj.address;
+        if (coordinatorName) coordinator.name = coordinatorName;
+        if (coordinatorDesignation) coordinator.designation = coordinatorDesignation;
+        if (coordinatorMobile) coordinator.mobile = coordinatorMobile;
+        await coordinator.save();
+
+        if (sendInvite && coordinator.status === "invited") {
+          await dispatchCoordinatorInvitation({ coordinator, academyName: academy.name });
+          inviteDispatched = true;
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      message: inviteDispatched
+        ? `Branch '${cleanName}' registered and invitation email sent to ${cleanEmail}!`
+        : `Branch '${cleanName}' saved successfully!`,
+      branch: branchObj,
+      coordinator,
+    });
+  } catch (err) {
+    logger.error(`Save branch error: ${err.message}`);
+    res.status(500).json({ message: "Failed to save branch." });
+  }
+});
+
+// POST /api/academy/branches/resend-invite - Resend invitation email
+router.post("/branches/resend-invite", requireAcademyAuth, async (req, res) => {
+  try {
+    const { email, coordinatorId } = req.body;
+    let coordinator = null;
+    if (coordinatorId) coordinator = await AcademyCoordinator.findOne({ _id: coordinatorId, academyId: req.academyId });
+    else if (email) coordinator = await AcademyCoordinator.findOne({ email: email.toLowerCase().trim(), academyId: req.academyId });
+
+    if (!coordinator) {
+      return res.status(404).json({ message: "Branch coordinator record not found." });
+    }
+
+    const academy = await Academy.findById(req.academyId).lean();
+    const { activationUrl } = await dispatchCoordinatorInvitation({ coordinator, academyName: academy?.name || "Talentera Partner Academy" });
+
+    res.json({
+      success: true,
+      message: `Invitation email resent to ${coordinator.email}.`,
+      activationUrl,
+    });
+  } catch (err) {
+    logger.error(`Resend invite error: ${err.message}`);
+    res.status(500).json({ message: "Failed to resend invitation." });
+  }
+});
+
+// GET /api/academy/coordinator/verify-token - Public token verification for activation
+router.get("/coordinator/verify-token", async (req, res) => {
+  try {
+    const { token } = req.query;
+    if (!token) return res.status(400).json({ valid: false, message: "Token missing." });
+
+    const coordinator = await AcademyCoordinator.findOne({
+      inviteToken: token,
+      inviteExpires: { $gt: new Date() },
+    });
+
+    if (!coordinator) {
+      return res.status(400).json({ valid: false, message: "Invitation link has expired or is invalid. Please contact your Academy Head to resend an invite." });
+    }
+
+    const academy = await Academy.findById(coordinator.academyId).select("name headquarters contactName").lean();
+
+    res.json({
+      valid: true,
+      coordinator: {
+        name: coordinator.name,
+        email: coordinator.email,
+        designation: coordinator.designation,
+        branchName: coordinator.branchName,
+        branchCity: coordinator.branchCity,
+        academyName: academy?.name || "Partner Academy",
+      },
+    });
+  } catch (err) {
+    logger.error(`Verify coordinator token error: ${err.message}`);
+    res.status(500).json({ valid: false, message: "Server error validating token." });
+  }
+});
+
+// POST /api/academy/coordinator/activate - Public coordinator account activation & password set
+router.post("/coordinator/activate", async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    if (!token) return res.status(400).json({ message: "Token is required." });
+    if (!password || password.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters long." });
+    }
+
+    const coordinator = await AcademyCoordinator.findOne({
+      inviteToken: token,
+      inviteExpires: { $gt: new Date() },
+    });
+
+    if (!coordinator) {
+      return res.status(400).json({ message: "Invitation token has expired or is invalid. Please request a new invite from your Academy Head." });
+    }
+
+    coordinator.passwordHash = await bcrypt.hash(password, 10);
+    coordinator.status = "active";
+    coordinator.activatedAt = new Date();
+    coordinator.lastLoginAt = new Date();
+    coordinator.inviteToken = null;
+    coordinator.inviteExpires = null;
+    await coordinator.save();
+
+    const parentAcademy = await Academy.findById(coordinator.academyId).lean();
+    const jwtToken = signAcademyCoordinatorToken(coordinator.academyId, coordinator._id, coordinator.branchName, coordinator.branchCity);
+
+    res.json({
+      success: true,
+      message: "Account activated successfully! Logging you in...",
+      token: jwtToken,
+      academy: parentAcademy,
+      coordinator: {
+        _id: coordinator._id,
+        name: coordinator.name,
+        email: coordinator.email,
+        designation: coordinator.designation,
+        branchName: coordinator.branchName,
+        branchCity: coordinator.branchCity,
+        role: coordinator.role,
+      },
+      isBranchCoordinator: true,
+    });
+  } catch (err) {
+    logger.error(`Activate coordinator error: ${err.message}`);
+    res.status(500).json({ message: "Failed to activate account." });
   }
 });
 

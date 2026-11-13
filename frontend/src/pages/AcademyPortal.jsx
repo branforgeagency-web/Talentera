@@ -58,6 +58,7 @@ import {
   Clock,
   ChevronRight,
   Plus,
+  UserCheck,
   Download,
   Flame,
   ArrowRight,
@@ -252,6 +253,21 @@ export default function AcademyPortal() {
   const [showDisputeModal, setShowDisputeModal] = useState({ open: false, placement: null, reason: "" });
   const [toastMsg, setToastMsg] = useState(null);
 
+  // Branch & Placement Coordinator States
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState("all");
+  const [branchesList, setBranchesList] = useState([]);
+  const [showAddBranchModal, setShowAddBranchModal] = useState(false);
+  const [newBranchName, setNewBranchName] = useState("");
+  const [newBranchCity, setNewBranchCity] = useState("");
+  const [newBranchState, setNewBranchState] = useState("");
+  const [newBranchPhone, setNewBranchPhone] = useState("");
+  const [newBranchAddress, setNewBranchAddress] = useState("");
+  const [newCoordName, setNewCoordName] = useState("");
+  const [newCoordDesignation, setNewCoordDesignation] = useState("Placement Coordinator");
+  const [newCoordEmail, setNewCoordEmail] = useState("");
+  const [newCoordMobile, setNewCoordMobile] = useState("");
+  const [savingBranch, setSavingBranch] = useState(false);
+
   // Batch Creation Inputs
   const [newBatchCode, setNewBatchCode] = useState("");
   const [newBatchCourse, setNewBatchCourse] = useState("Medical Coding");
@@ -437,9 +453,94 @@ export default function AcademyPortal() {
     }
   };
 
-  const fetchDashboardData = async () => {
+  const fetchBranches = async () => {
     try {
-      const res = await fetch("/api/academy/dashboard", {
+      const res = await fetch("/api/academy/branches", {
+        headers: { ...getAuthHeader() },
+      });
+      const data = await safeJson(res);
+      if (res.ok && data?.branches) {
+        setBranchesList(data.branches);
+      }
+    } catch (err) {
+      console.error("Fetch branches error:", err);
+    }
+  };
+
+  const handleAddBranchSubmit = async (e) => {
+    e.preventDefault();
+    if (!newBranchName.trim()) {
+      showToast("Please enter a branch name.", "error");
+      return;
+    }
+    setSavingBranch(true);
+    try {
+      const res = await fetch("/api/academy/branches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({
+          name: newBranchName,
+          city: newBranchCity,
+          state: newBranchState,
+          phone: newBranchPhone,
+          address: newBranchAddress,
+          coordinatorName: newCoordName,
+          coordinatorDesignation: newCoordDesignation,
+          coordinatorEmail: newCoordEmail,
+          coordinatorMobile: newCoordMobile,
+          sendInvite: true,
+        }),
+      });
+      const data = await safeJson(res);
+      if (res.ok && data?.success) {
+        showToast(data.message || "Branch registered successfully!", "success");
+        setShowAddBranchModal(false);
+        setNewBranchName("");
+        setNewBranchCity("");
+        setNewBranchState("");
+        setNewBranchPhone("");
+        setNewBranchAddress("");
+        setNewCoordName("");
+        setNewCoordDesignation("Placement Coordinator");
+        setNewCoordEmail("");
+        setNewCoordMobile("");
+        fetchBranches();
+        fetchDashboardData();
+      } else {
+        showToast(data?.message || "Failed to add branch.", "error");
+      }
+    } catch (err) {
+      console.error("Add branch error:", err);
+      showToast("Error adding branch.", "error");
+    } finally {
+      setSavingBranch(false);
+    }
+  };
+
+  const handleResendInvite = async (coordinatorId, email) => {
+    try {
+      const res = await fetch("/api/academy/branches/resend-invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({ coordinatorId, email }),
+      });
+      const data = await safeJson(res);
+      if (res.ok && data?.success) {
+        showToast(data.message || `Invitation resent to ${email}!`, "success");
+        fetchBranches();
+      } else {
+        showToast(data?.message || "Failed to resend invite.", "error");
+      }
+    } catch (err) {
+      showToast("Error resending invite.", "error");
+    }
+  };
+
+  const fetchDashboardData = async (branchOverride) => {
+    try {
+      const bParam = branchOverride !== undefined ? branchOverride : (selectedBranchFilter !== "all" ? selectedBranchFilter : "");
+      const url = bParam ? `/api/academy/dashboard?branch=${encodeURIComponent(bParam)}` : "/api/academy/dashboard";
+      const res = await fetch(url, {
         headers: { ...getAuthHeader() },
       });
       if (res.status === 401) {
@@ -567,6 +668,7 @@ export default function AcademyPortal() {
   useEffect(() => {
     fetchOfferTracker();
     fetchDashboardData();
+    fetchBranches();
     fetchStuckStudents();
     fetchApprovalsCount();
     fetchScoresAnalytics();
@@ -1261,6 +1363,128 @@ export default function AcademyPortal() {
 
         {/* ====== CONTENT AREA ====== */}
         <main style={{ padding: 24, height: "100%", overflowY: "auto", overflowX: "hidden" }}>
+          {/* ========================================================= */}
+          {/* BRANCH PLACEMENT COORDINATOR SCOPED ACCESS BANNER */}
+          {/* ========================================================= */}
+          {dashData?.isBranchCoordinator && dashData?.coordinator && (
+            <div
+              style={{
+                background: "linear-gradient(135deg, #0A1F3D 0%, #152A4A 100%)",
+                borderRadius: 12,
+                padding: "14px 20px",
+                marginBottom: 20,
+                color: "#FFFFFF",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: 12,
+                boxShadow: "0 4px 12px rgba(10, 31, 61, 0.15)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 10,
+                    background: "rgba(255,255,255,0.12)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 20,
+                  }}
+                >
+                  📍
+                </div>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>
+                      {dashData.coordinator.branchName}
+                      {dashData.coordinator.branchCity ? ` (${dashData.coordinator.branchCity})` : ""}
+                    </h3>
+                    <span
+                      style={{
+                        background: "#16A34A",
+                        color: "#fff",
+                        fontSize: 10.5,
+                        fontWeight: 800,
+                        padding: "2px 8px",
+                        borderRadius: 4,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                      }}
+                    >
+                      Branch Scoped Access
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", marginTop: 2 }}>
+                    Placement Coordinator: <strong>{dashData.coordinator.name}</strong> ({dashData.coordinator.designation || "Placement Coordinator"}) • <span style={{ opacity: 0.9 }}>{dashData.coordinator.email}</span>
+                  </div>
+                </div>
+              </div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.75)" }}>
+                Showing students, batches, approvals &amp; placements for your branch.
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* BRANCH SWITCHER FOR ACADEMY HEAD */}
+          {/* ========================================================= */}
+          {!dashData?.isBranchCoordinator && (dashData?.availableBranches || []).length > 0 && activeMod !== "kyc" && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                background: "#F8FAFC",
+                border: "1px solid #E2E8F0",
+                borderRadius: 10,
+                padding: "8px 14px",
+                marginBottom: 16,
+                flexWrap: "wrap",
+                gap: 10,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Building2 size={16} color="#0A1F3D" />
+                <span style={{ fontSize: 12, fontWeight: 800, color: "#0A1F3D" }}>ACADEMY BRANCH VIEW:</span>
+                <select
+                  value={selectedBranchFilter}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setSelectedBranchFilter(val);
+                    fetchDashboardData(val === "all" ? "" : val);
+                  }}
+                  style={{
+                    padding: "5px 10px",
+                    borderRadius: 6,
+                    border: "1px solid #CBD5E1",
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    background: "#FFFFFF",
+                    color: "#0F172A",
+                    cursor: "pointer",
+                    outline: "none",
+                  }}
+                >
+                  <option value="all">🏢 All Branches ({dashData?.kpis?.totalStudents || 0} Total Students)</option>
+                  {dashData.availableBranches.map((br) => (
+                    <option key={br} value={br}>
+                      📍 {br}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {selectedBranchFilter !== "all" && (
+                <span style={{ fontSize: 11.5, color: "#2563EB", fontWeight: 700 }}>
+                  Filtered to {selectedBranchFilter} • <span style={{ textDecoration: "underline", cursor: "pointer" }} onClick={() => { setSelectedBranchFilter("all"); fetchDashboardData(""); }}>Reset to All</span>
+                </span>
+              )}
+            </div>
+          )}
+
           {/* ========================================================= */}
           {/* TOP WARNING TILE FOR KYC VERIFICATION */}
           {/* ========================================================= */}
@@ -2979,6 +3203,158 @@ export default function AcademyPortal() {
                 </div>
               )}
 
+              {/* Tab: Branches & Placement Coordinators */}
+              {settingsSubTab === "Branches & Coordinators" && (
+                <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 12, padding: 24 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+                    <div>
+                      <h4 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 800, color: "#06152A" }}>Branches &amp; Placement Coordinators</h4>
+                      <div style={{ fontSize: 12, color: "#64748B" }}>
+                        Register training centres, assign branch coordinators, and manage login access.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddBranchModal(true)}
+                      style={{
+                        background: "#06152A",
+                        color: "#fff",
+                        border: "none",
+                        padding: "8px 16px",
+                        borderRadius: 8,
+                        fontSize: 12.5,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      + Add Branch &amp; Coordinator
+                    </button>
+                  </div>
+
+                  {branchesList.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "40px 20px", color: "#64748B", background: "#F8FAFC", borderRadius: 10, border: "1px dashed #CBD5E1" }}>
+                      <Building2 size={32} color="#94A3B8" style={{ margin: "0 auto 10px", display: "block" }} />
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "#334155" }}>No Branches Registered Yet</div>
+                      <div style={{ fontSize: 12, marginTop: 4 }}>Add branches to assign placement coordinators and unlock branch-specific dashboards.</div>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddBranchModal(true)}
+                        style={{ marginTop: 14, background: "#06152A", color: "#fff", border: "none", padding: "8px 16px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                      >
+                        + Add First Branch
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16 }}>
+                      {branchesList.map((b, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            border: "1px solid #E2E8F0",
+                            borderRadius: 12,
+                            padding: 18,
+                            background: "#FAFAFA",
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                            <div>
+                              <div style={{ fontSize: 15, fontWeight: 800, color: "#0F172A" }}>{b.name}</div>
+                              <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>
+                                {b.city}{b.state ? `, ${b.state}` : ""}
+                              </div>
+                            </div>
+                            <span
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                padding: "2px 8px",
+                                borderRadius: 6,
+                                background: b.coordinator?.status === "active" ? "#DCFCE7" : b.coordinator ? "#FEF3C7" : "#F1F5F9",
+                                color: b.coordinator?.status === "active" ? "#166534" : b.coordinator ? "#92400E" : "#64748B",
+                              }}
+                            >
+                              {b.coordinator?.status === "active" ? "Active" : b.coordinator ? "Invitation Sent" : "No Coordinator"}
+                            </span>
+                          </div>
+
+                          <div style={{ fontSize: 12, color: "#475569", marginBottom: 12, lineHeight: 1.5 }}>
+                            {b.address && <div><strong>Address:</strong> {b.address}</div>}
+                            {b.phone && <div><strong>Contact:</strong> {b.phone}</div>}
+                            <div style={{ display: "flex", gap: 14, marginTop: 6 }}>
+                              <span><strong>Students:</strong> {b.studentsCount || 0}</span>
+                              <span><strong>Batches:</strong> {b.batchesCount || 0}</span>
+                            </div>
+                          </div>
+
+                          {/* Coordinator Card */}
+                          <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8, padding: 12, marginTop: 8 }}>
+                            <div style={{ fontSize: 11, fontWeight: 800, color: "#0F172A", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
+                              Placement Coordinator
+                            </div>
+                            {b.coordinator ? (
+                              <div style={{ fontSize: 12, color: "#334155" }}>
+                                <div style={{ fontWeight: 700, color: "#0F172A" }}>{b.coordinator.name}</div>
+                                <div style={{ fontSize: 11, color: "#64748B" }}>{b.coordinator.designation}</div>
+                                <div style={{ fontSize: 11, color: "#475569", marginTop: 4 }}>
+                                  ✉ {b.coordinator.email} {b.coordinator.mobile ? `• ☎ ${b.coordinator.mobile}` : ""}
+                                </div>
+                                {b.coordinator.status === "invited" && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleResendInvite(b.coordinator._id, b.coordinator.email)}
+                                    style={{
+                                      marginTop: 8,
+                                      background: "#F1F5F9",
+                                      border: "1px solid #CBD5E1",
+                                      borderRadius: 6,
+                                      padding: "4px 10px",
+                                      fontSize: 11,
+                                      fontWeight: 700,
+                                      color: "#1E293B",
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    Resend Activation Invite
+                                  </button>
+                                )}
+                              </div>
+                            ) : b.coordinatorEmail ? (
+                              <div style={{ fontSize: 12, color: "#334155" }}>
+                                <div style={{ fontWeight: 700 }}>{b.coordinatorName || "Assigned Coordinator"}</div>
+                                <div style={{ fontSize: 11, color: "#64748B" }}>{b.coordinatorDesignation || "Placement Coordinator"}</div>
+                                <div style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>✉ {b.coordinatorEmail}</div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleResendInvite(null, b.coordinatorEmail)}
+                                  style={{
+                                    marginTop: 8,
+                                    background: "#06152A",
+                                    color: "#fff",
+                                    border: "none",
+                                    borderRadius: 6,
+                                    padding: "4px 10px",
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Send Invitation Email
+                                </button>
+                              </div>
+                            ) : (
+                              <div style={{ fontSize: 11, color: "#94A3B8", fontStyle: "italic" }}>
+                                No placement coordinator assigned yet.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Tab 2: Batches & Courses */}
               {settingsSubTab === "Pictures & Videos" && <AcademyGalleryManager getAuthHeader={getAuthHeader} />}
 
@@ -3815,6 +4191,175 @@ export default function AcademyPortal() {
                   style={{ background: "#06152A", color: "#FFFFFF", border: "none", padding: "8px 18px", borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: "pointer" }}
                 >
                   {editCandidateSaving ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Add Branch & Coordinator Modal */}
+      {showAddBranchModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 99999,
+            padding: 20,
+          }}
+          onClick={() => setShowAddBranchModal(false)}
+        >
+          <div
+            style={{
+              background: "#FFFFFF",
+              borderRadius: 14,
+              padding: 24,
+              width: "100%",
+              maxWidth: 580,
+              maxHeight: "92vh",
+              overflowY: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#06152A" }}>Add Branch &amp; Placement Coordinator</h4>
+              <button type="button" onClick={() => setShowAddBranchModal(false)} style={{ border: "none", background: "none", fontSize: 22, cursor: "pointer", color: "#64748B" }}>&times;</button>
+            </div>
+            <p style={{ margin: "0 0 16px", fontSize: 12, color: "#64748B" }}>
+              Register the branch training centre and assign a placement coordinator. Talentera will send them an activation link to set their password.
+            </p>
+
+            <form onSubmit={handleAddBranchSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ borderBottom: "1px solid #F1F5F9", paddingBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: "#0A1F3D", textTransform: "uppercase", marginBottom: 8 }}>Branch Details</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 4 }}>BRANCH NAME *</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Dilsukhnagar Branch"
+                      value={newBranchName}
+                      onChange={(e) => setNewBranchName(e.target.value)}
+                      required
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 4 }}>CITY</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Hyderabad"
+                      value={newBranchCity}
+                      onChange={(e) => setNewBranchCity(e.target.value)}
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 4 }}>STATE</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Telangana"
+                      value={newBranchState}
+                      onChange={(e) => setNewBranchState(e.target.value)}
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 4 }}>BRANCH CONTACT NO.</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 040-24001122"
+                      value={newBranchPhone}
+                      onChange={(e) => setNewBranchPhone(e.target.value)}
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 4 }}>FULL ADDRESS</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Flat No. 109, C.B. Eastern Homes, Main Road"
+                    value={newBranchAddress}
+                    onChange={(e) => setNewBranchAddress(e.target.value)}
+                    style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: "#0A1F3D", textTransform: "uppercase", marginBottom: 8 }}>
+                  Placement Coordinator (Login &amp; Invite)
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 4 }}>COORDINATOR NAME</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Ramesh Kumar"
+                      value={newCoordName}
+                      onChange={(e) => setNewCoordName(e.target.value)}
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 4 }}>DESIGNATION</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Placement Coordinator"
+                      value={newCoordDesignation}
+                      onChange={(e) => setNewCoordDesignation(e.target.value)}
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 4 }}>OFFICIAL EMAIL ID</label>
+                    <input
+                      type="email"
+                      placeholder="coordinator@academy.com"
+                      value={newCoordEmail}
+                      onChange={(e) => setNewCoordEmail(e.target.value)}
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 4 }}>CONTACT NO.</label>
+                    <input
+                      type="tel"
+                      placeholder="e.g. 9876543210"
+                      value={newCoordMobile}
+                      onChange={(e) => setNewCoordMobile(e.target.value)}
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowAddBranchModal(false)}
+                  style={{ background: "#F1F5F9", color: "#475569", border: "none", padding: "8px 14px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingBranch}
+                  style={{ background: "#06152A", color: "#FFFFFF", border: "none", padding: "8px 18px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                >
+                  {savingBranch ? "Registering…" : "Register Branch & Dispatch Invitation"}
                 </button>
               </div>
             </form>

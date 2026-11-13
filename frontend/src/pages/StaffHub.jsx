@@ -12250,6 +12250,15 @@ export default function StaffHub() {
                         <div className="staff-meta-label">POC Direct Mobile</div>
                         <div className="staff-meta-value">{selectedCompany.mobile || s1b.pocmobile || "N/A"}</div>
                       </div>
+                      {(s1b.poc2name || s1b.poc2email || s1b.poc2mobile) && (
+                        <div className="staff-meta-item">
+                          <div className="staff-meta-label">Second POC (alternate)</div>
+                          <div className="staff-meta-value">
+                            {[s1b.poc2name, s1b.poc2desig].filter(Boolean).join(", ") || "N/A"}
+                            {(s1b.poc2email || s1b.poc2mobile) ? ` · ${[s1b.poc2email, s1b.poc2mobile].filter(Boolean).join(" · ")}` : ""}
+                          </div>
+                        </div>
+                      )}
                       <div className="staff-meta-item">
                         <div className="staff-meta-label">Corporate Designation</div>
                         <div className="staff-meta-value">{s1b.pocdesig || "Talent Acquisition Lead"}</div>

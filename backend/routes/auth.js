@@ -9,6 +9,7 @@ const { generateResetOtp, verifyAndConsumeResetOtp } = require("../utils/passwor
 const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
 const { verifyWidgetAccessToken } = require("../utils/msg91Widget");
 const logger = require("../utils/logger");
+const { addProfile, typesOf } = require("../utils/fresherToExperienced");
 
 const router = express.Router();
 
@@ -91,6 +92,8 @@ router.post(
     }
 
     const { email, password, mobile, accessToken, inviteToken } = req.body;
+    const rawType = String(req.body.candidateType || "").toLowerCase().trim();
+    const candidateType = rawType === "experienced" ? "experienced" : rawType === "fresher" ? "fresher" : null;
     const cleanEmail = (email || "").toLowerCase().trim();
     const rawMobile = mobile || "";
     const mobileVariants = getMobileQueryVariants([rawMobile]);
@@ -132,6 +135,7 @@ router.post(
 
         candidate.passwordHash = await bcrypt.hash(password, 10);
         candidate.mobile = rawMobile || candidate.mobile || "";
+        if (candidateType && !candidate.candidateType) candidate.candidateType = candidateType;
         candidate.isVerified = true;
         candidate.verifiedAt = new Date();
         await candidate.save();
@@ -144,6 +148,10 @@ router.post(
 
         const token = signToken(candidate._id, "candidate");
         return res.status(201).json({ token, candidate });
+      }
+
+      if (!candidateType) {
+        return res.status(400).json({ message: "Please choose whether you are a Fresher or Experienced." });
       }
 
       if (!accessToken) {
@@ -163,6 +171,25 @@ router.post(
 
       const existing = await Candidate.findOne({ $or: findCandOr });
       if (existing && existing.isVerified) {
+        // Same e-mail registering later as the OTHER type (Fresher -> Experienced or back): keep one account and add
+        // the second profile. The existing password must be entered so nobody can add a profile to (or take over)
+        // an account with just an e-mail address. Experienced profiles are pre-filled from the fresher data.
+        const sameEmail = existing.email === cleanEmail;
+        if (sameEmail && !typesOf(existing).includes(candidateType)) {
+          const ok = existing.passwordHash ? await bcrypt.compare(password, existing.passwordHash) : false;
+          if (!ok) {
+            const had = existing.toJSON().candidateType;
+            return res.status(401).json({
+              code: "EXISTING_PASSWORD_REQUIRED",
+              message: `This email already has a ${had === "experienced" ? "Experienced" : "Fresher"} account. Enter your existing password to add your ${candidateType === "experienced" ? "Experienced" : "Fresher"} profile.`,
+            });
+          }
+          const { prefilledFields } = await addProfile(existing, candidateType);
+          if (rawMobile && !existing.mobile) existing.mobile = rawMobile;
+          await existing.save();
+          const token = signToken(existing._id, "candidate");
+          return res.status(200).json({ token, candidate: existing, profileAdded: candidateType, prefilledFields });
+        }
         return res.status(409).json({ message: "An account with this email or mobile number already exists." });
       }
 
@@ -171,6 +198,7 @@ router.post(
       if (existing && !existing.isVerified) {
         existing.passwordHash = passwordHash;
         existing.mobile = rawMobile || existing.mobile || "";
+        existing.candidateType = candidateType;
         existing.isVerified = true;
         existing.verifiedAt = new Date();
         candidate = await existing.save();
@@ -179,6 +207,7 @@ router.post(
           email: cleanEmail,
           passwordHash,
           mobile: rawMobile || "",
+          candidateType,
           isVerified: true,
           verifiedAt: new Date(),
           completedStages: [],

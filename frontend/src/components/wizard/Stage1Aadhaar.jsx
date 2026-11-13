@@ -3,8 +3,9 @@ import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import CollegePicker from "../CollegePicker.jsx";
 import SearchableSelect from "../SearchableSelect.jsx";
-import { CITIES_BY_STATE } from "../../data/indianCities.js";
+import { CITIES_BY_STATE, INDIAN_CITIES } from "../../data/indianCities.js";
 import { verhoeffValidate, formatAadhaar, formatMobile, isValidIndianMobile } from "../../utils/verhoeff";
+import { getCandidateType } from "../../utils/candidateType.js";
 
 const INDIAN_STATES = [
   "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat",
@@ -21,6 +22,15 @@ const POPULAR_CITIES = [
   "Delhi NCR", "Noida", "Gurgaon", "Kolkata", "Ahmedabad", "Jaipur",
   "Kochi", "Trivandrum", "Mysore", "Chandigarh", "Indore", "Nagpur",
   "Bhubaneswar", "Visakhapatnam", "Trichy", "Madurai", "Salem"
+];
+
+// Popular cities first, then every other Indian city/town (a city already listed under another spelling is skipped).
+const POPULAR_LOWER = new Set(POPULAR_CITIES.map((c) => c.toLowerCase()));
+const ALL_CITY_OPTIONS = [
+  ...POPULAR_CITIES,
+  ...INDIAN_CITIES
+    .filter(({ city, aliases }) => !POPULAR_LOWER.has(city.toLowerCase()) && !(aliases || []).some((a) => POPULAR_LOWER.has(String(a).toLowerCase())))
+    .map(({ city }) => city),
 ];
 
 // Course Name options are keyed by BOTH the Academic Stream (Life Science /
@@ -894,15 +904,13 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
     });
   };
 
-  // 3. SECTION 3 · EXPERIENCE LEVEL
-  const [experience, setExperience] = useState(
-    existingData?.experience || candidate?.stage1?.experience || candidate?.experience || ""
-  );
+  // Fresher / Experienced is chosen at signup (no picker in Stage 1) and comes from the account.
+  const experience = getCandidateType(candidate) === "experienced" ? "Experienced" : "Fresher";
   const [currentRole, setCurrentRole] = useState(
     existingData?.currentRole || candidate?.stage1?.currentRole || candidate?.currentRole || ""
   );
 
-  // 4. SECTION 4 · LOCATION
+  // 3. SECTION 3 · LOCATION
   const [isSameAddress, setIsSameAddress] = useState(
     existingData?.isCurrentSameAsPermanent !== undefined ? existingData.isCurrentSameAsPermanent : false
   );
@@ -937,7 +945,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
     Array.isArray(existingData?.workShifts) ? existingData.workShifts.filter((x) => WORK_SHIFT_OPTIONS.includes(x)) : []
   );
 
-  // 5. SECTION 5 · BASIC EDUCATION
+  // 4. SECTION 4 · BASIC EDUCATION
   const [educationStream, setEducationStream] = useState(
     existingData?.educationStream || ""
   );
@@ -947,6 +955,8 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
   const [degree, setDegree] = useState(
     existingData?.degree || ""
   );
+  // True when the candidate chose "Other - my college isn't listed" and types the college by hand.
+  const [collegeManual, setCollegeManual] = useState(false);
   const [collegeName, setCollegeName] = useState(
     existingData?.collegeName || ""
   );
@@ -1520,10 +1530,9 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
     let completed = 0;
     if (isAadhaarVerified) completed++;
     if (mobile.trim() && email.trim()) completed++;
-    if (experience) completed++;
     if (preferredCities.length > 0) completed++;
     if (degree && collegeName.trim()) completed++;
-    return Math.min(completed + 1, 5);
+    return Math.min(completed + 1, 4);
   };
 
   // Save Function (Draft or Advance)
@@ -1615,7 +1624,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
         } else if (errs.mobile || errs.email || errs.fullName) {
           document.getElementById("section-2")?.scrollIntoView({ behavior: "smooth", block: "center" });
         } else {
-          document.getElementById("section-5")?.scrollIntoView({ behavior: "smooth", block: "center" });
+          document.getElementById("section-4")?.scrollIntoView({ behavior: "smooth", block: "center" });
         }
         return;
       }
@@ -2718,7 +2727,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
           <div className="form-toolbar">
             <div className="progress-rail">
               <span>Progress:</span>
-              {[1, 2, 3, 4, 5].map((idx) => {
+              {[1, 2, 3, 4].map((idx) => {
                 const currentSec = getSectionProgress();
                 return (
                   <span
@@ -2727,7 +2736,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   ></span>
                 );
               })}
-              <span>Section {getSectionProgress()} of 5</span>
+              <span>Section {getSectionProgress()} of 4</span>
             </div>
             <div className="saved-badge">{savedBadgeText}</div>
           </div>
@@ -3103,69 +3112,10 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
             </div>
           </div>
 
-          {/* SECTION 3 · EXPERIENCE LEVEL */}
+          {/* SECTION 3 · LOCATION */}
           <div className="section" id="section-3">
             <div className="section-header">
               <div className="section-num">3</div>
-              <div className="section-title">Experience Level</div>
-              <div className="status-chip pending">PENDING</div>
-            </div>
-
-            <div className="field">
-              <label>
-                Which best describes you? <span className="req">*</span>
-              </label>
-              <div className="helper" style={{ marginBottom: 10 }}>
-                This locks the flow for Stage 02. Choose carefully.
-              </div>
-              <div className="choice-row">
-                <div
-                  className={`choice ${experience === "Fresher" ? "selected" : ""}`}
-                  onClick={() => setExperience("Fresher")}
-                >
-                  <div className="choice-check">{experience === "Fresher" ? "✓" : ""}</div>
-                  <div className="choice-icon"><i className="fa-solid fa-graduation-cap" /></div>
-                  <div className="choice-title">Fresher</div>
-                  <div className="choice-sub">New to Industry</div>
-                  <div className="choice-desc">
-                    New to the RCM industry, including students, recent graduates and candidates who have completed training but do not yet have professional RCM work experience.
-                  </div>
-                </div>
-                <div
-                  className={`choice ${experience === "Experienced" ? "selected" : ""}`}
-                  onClick={() => setExperience("Experienced")}
-                >
-                  <div className="choice-check">{experience === "Experienced" ? "✓" : ""}</div>
-                  <div className="choice-icon"><i className="fa-solid fa-briefcase" /></div>
-                  <div className="choice-title">Experienced</div>
-                  <div className="choice-sub">1+ yrs in Coding / RCM</div>
-                  <div className="choice-desc">
-                    Currently or previously employed in a medical coding, medical billing or other healthcare RCM role. Relevant work experience will be collected in the next stage.
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {experience === "Experienced" && (
-              <div className="field" style={{ marginTop: 14 }}>
-                <label>
-                  Current / Most Recent Role <span className="req">*</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Senior Medical Coder / IP-DRG Specialist"
-                  value={currentRole}
-                  onChange={(e) => setCurrentRole(e.target.value)}
-                />
-                <div className="helper">Details regarding company and tenure will be expanded in Stage 02.</div>
-              </div>
-            )}
-          </div>
-
-          {/* SECTION 4 · LOCATION */}
-          <div className="section" id="section-4">
-            <div className="section-header">
-              <div className="section-num">4</div>
               <div className="section-title">Location</div>
             </div>
 
@@ -3330,18 +3280,15 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
               </div>
               {cityInputOpen && (
                 <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
-                  <select
-                    value={selectedCityOption}
-                    onChange={(e) => setSelectedCityOption(e.target.value)}
-                    style={{ maxWidth: 220 }}
-                  >
-                    <option value="">Select a city…</option>
-                    {POPULAR_CITIES.filter((c) => !preferredCities.includes(c)).map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
+                  <div style={{ width: 260 }}>
+                    <SearchableSelect
+                      value={selectedCityOption}
+                      options={ALL_CITY_OPTIONS.filter((c) => !preferredCities.includes(c))}
+                      placeholder="Select a city…"
+                      searchPlaceholder="Type to search any city in India…"
+                      onChange={(v) => setSelectedCityOption(v)}
+                    />
+                  </div>
                   <button
                     type="button"
                     className="action-btn small"
@@ -3412,10 +3359,10 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
             </div>
           </div>
 
-          {/* SECTION 5 · BASIC EDUCATION */}
-          <div className="section" id="section-5">
+          {/* SECTION 4 · BASIC EDUCATION */}
+          <div className="section" id="section-4">
             <div className="section-header">
-              <div className="section-num">5</div>
+              <div className="section-num">4</div>
               <div className="section-title">Basic Education</div>
               <div className="status-chip pending">PENDING · +3</div>
             </div>
@@ -3514,7 +3461,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                 <label>
                   University / College <span className="req">*</span>
                 </label>
-                {educationStream === "Other" ? (
+                {(educationStream === "Other" || collegeManual) ? (
                   <input
                     type="text"
                     value={collegeName}
@@ -3527,6 +3474,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                 ) : (
                 <CollegePicker
                   mode="college"
+                  onOther={() => { setCollegeManual(true); setCollegeName(""); setCollegeLocation(""); setCollegeState(""); }}
                   value={collegeName}
                   placeholder="Search your college or university…"
                   onChange={(v) => {
@@ -3547,11 +3495,20 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                 ) : (
                   <div className="helper">
                     <i className="fa-solid fa-magnifying-glass" style={{ marginRight: 5, color: "#94A3B8" }} />
-                    {educationStream === "Other" ? "Type the full name of your college / university." : "Search from 53,000+ colleges across India. Not found? Type the full name directly."}
+                    {(educationStream === "Other" || collegeManual) ? "Type the full name of your college / university." : "Search from 53,000+ colleges across India. Not listed? Choose “Other - my college isn't listed” in the dropdown and type it."}
+                    {collegeManual && educationStream !== "Other" && (
+                      <button
+                        type="button"
+                        onClick={() => setCollegeManual(false)}
+                        style={{ marginLeft: 8, background: "none", border: "none", color: "#2563EB", fontWeight: 700, cursor: "pointer", fontSize: 12, padding: 0 }}
+                      >
+                        ← Search the list instead
+                      </button>
+                    )}
                   </div>
                 )}
                 <label style={{ marginTop: 12 }}>College location <span style={{ fontWeight: 500, opacity: 0.7 }}>(district / city)</span></label>
-                {educationStream === "Other" ? (
+                {(educationStream === "Other" || collegeManual) ? (
                   <input
                     type="text"
                     value={collegeLocation}

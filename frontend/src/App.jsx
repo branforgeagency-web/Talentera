@@ -19,6 +19,7 @@ import CompanyBilling from "./pages/CompanyBilling.jsx";
 import Jobs from "./pages/Jobs.jsx";
 import AcademyLogin from "./pages/AcademyLogin.jsx";
 import AcademyPortal from "./pages/AcademyPortal.jsx";
+import AcademyCoordinatorActivate from "./pages/AcademyCoordinatorActivate.jsx";
 import StaffLogin from "./pages/StaffLogin.jsx";
 import StaffHub from "./pages/StaffHub.jsx";
 import ResumeBuilder from "./pages/ResumeBuilder.jsx";
@@ -33,6 +34,7 @@ import CollegeLogin from "./pages/CollegeLogin.jsx";
 import CollegeRegister from "./pages/CollegeRegister.jsx";
 import CollegePortal from "./pages/CollegePortal.jsx";
 import RequireAuth from "./components/RequireAuth.jsx";
+import DashboardEntry from "./components/DashboardEntry.jsx";
 import CompanyRequireAuth from "./components/CompanyRequireAuth.jsx";
 import CollegeRequireAuth from "./components/CollegeRequireAuth.jsx";
 
@@ -134,11 +136,29 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/register" element={<Register />} />
+      {/* Separate candidate dashboards. The signup choice (Fresher / Experienced) decides
+          which one opens; /dashboard and any other /dashboard/* path forward to it. */}
+      <Route
+        path="/dashboard/fresher"
+        element={
+          <RequireAuth>
+            <CandidateWizard key="fresher" portal="fresher" />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/dashboard/experienced"
+        element={
+          <RequireAuth>
+            <CandidateWizard key="experienced" portal="experienced" />
+          </RequireAuth>
+        }
+      />
       <Route
         path="/dashboard/*"
         element={
           <RequireAuth>
-            <CandidateWizard />
+            <DashboardEntry />
           </RequireAuth>
         }
       />
@@ -183,6 +203,7 @@ export default function App() {
       <Route path="/academies/login" element={<AcademyLogin />} />
       <Route path="/academy/register" element={<AcademyLogin />} />
       <Route path="/academies/register" element={<AcademyLogin />} />
+      <Route path="/academy/coordinator/activate" element={<AcademyCoordinatorActivate />} />
       <Route path="/academy/*" element={<AcademyPortal />} />
 
       {/* 05. Staff & Employee Operations Hub */}

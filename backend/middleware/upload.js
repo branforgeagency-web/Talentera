@@ -60,8 +60,17 @@ const ALLOWED_MIME_TYPES = {
     "video/webm",
     "video/quicktime",
   ],
-  // Academy bulk student-roster upload, CSV
+  // Academy bulk student-roster upload, CSV, and general documents / passport uploads
   file: [
+    "application/pdf",
+    "image/jpeg",
+    "image/jpg",
+    "image/pjpeg",
+    "image/png",
+    "image/x-png",
+    "image/webp",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "text/csv",
     "application/vnd.ms-excel",
     "application/csv",
@@ -260,7 +269,7 @@ async function xlsxBufferToCsvBuffer(buffer) {
 async function xlsxToCsvMiddleware(req, res, next) {
   try {
     const f = req.file;
-    if (f && f.buffer && f.buffer.length >= 4 && f.buffer[0] === 0x50 && f.buffer[1] === 0x4b && f.buffer[2] === 0x03 && f.buffer[3] === 0x04) {
+    if (f && f.buffer && f.buffer.length >= 4 && f.buffer[0] === 0x50 && f.buffer[1] === 0x4b && f.buffer[2] === 0x03 && f.buffer[3] === 0x04 && /\.(xlsx|xlsm)$/i.test(f.originalname || "")) {
       f.buffer = await xlsxBufferToCsvBuffer(f.buffer);
       f.size = f.buffer.length;
       f.mimetype = "text/csv";

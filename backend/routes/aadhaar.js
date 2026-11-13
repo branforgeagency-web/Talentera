@@ -306,6 +306,28 @@ router.post(
         candidate.completedStages.push(1);
       }
 
+      if (candidate.candidateType === "experienced" || candidate.experienced) {
+        if (!candidate.experienced) candidate.experienced = { stages: {}, completed: [], uploads: [] };
+        if (!candidate.experienced.stages) candidate.experienced.stages = {};
+        if (!candidate.experienced.stages[1]) candidate.experienced.stages[1] = {};
+        if (!candidate.experienced.stages[1]["personal-contact"]) candidate.experienced.stages[1]["personal-contact"] = {};
+        if (!candidate.experienced.stages[1]["upload-your-documents"]) candidate.experienced.stages[1]["upload-your-documents"] = {};
+
+        const pc = candidate.experienced.stages[1]["personal-contact"];
+        const ud = candidate.experienced.stages[1]["upload-your-documents"];
+        if (verification.name) pc.fullName = verification.name;
+        if (verification.dob) pc.dateOfBirth = verification.dob;
+        if (verification.gender) pc.gender = verification.gender;
+        pc.governmentIdType = "Aadhaar";
+        if (verification.maskedAadhaar) {
+          pc.governmentIdNumber = verification.maskedAadhaar;
+          pc.maskedGovtId = verification.maskedAadhaar;
+          ud.aadhaarNumber = verification.maskedAadhaar;
+        }
+        pc.isGovtIdVerified = "Yes";
+        candidate.markModified("experienced");
+      }
+
       candidate.markModified("stage1");
       await candidate.save();
 
@@ -467,6 +489,28 @@ router.post("/messagecentral/fetch-document", async (req, res) => {
       maskedAadhaar: verification.maskedAadhaar || candidate.stage1.maskedAadhaar || "",
       maskedMobile: candidate.stage1.maskedMobile || "",
     };
+
+    if (candidate.candidateType === "experienced" || candidate.experienced) {
+      if (!candidate.experienced) candidate.experienced = { stages: {}, completed: [], uploads: [] };
+      if (!candidate.experienced.stages) candidate.experienced.stages = {};
+      if (!candidate.experienced.stages[1]) candidate.experienced.stages[1] = {};
+      if (!candidate.experienced.stages[1]["personal-contact"]) candidate.experienced.stages[1]["personal-contact"] = {};
+      if (!candidate.experienced.stages[1]["upload-your-documents"]) candidate.experienced.stages[1]["upload-your-documents"] = {};
+
+      const pc = candidate.experienced.stages[1]["personal-contact"];
+      const ud = candidate.experienced.stages[1]["upload-your-documents"];
+      if (verification.name) pc.fullName = verification.name;
+      if (verification.dob) pc.dateOfBirth = verification.dob;
+      if (verification.gender) pc.gender = verification.gender;
+      pc.governmentIdType = "Aadhaar";
+      if (verification.maskedAadhaar) {
+        pc.governmentIdNumber = verification.maskedAadhaar;
+        pc.maskedGovtId = verification.maskedAadhaar;
+        ud.aadhaarNumber = verification.maskedAadhaar;
+      }
+      pc.isGovtIdVerified = "Yes";
+      candidate.markModified("experienced");
+    }
 
     candidate.markModified("stage1");
     await candidate.save();

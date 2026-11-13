@@ -69,6 +69,10 @@ export const ONBOARDING_STAGES = [
       { id: "pocdesig", name: "POC designation", tag: "must", input: "text", placeholder: "e.g. Head of TA" },
       { id: "pocemail", name: "POC email", desc: "OTP-verified", tag: "must", input: "email" },
       { id: "pocmobile", name: "POC mobile", desc: "OTP-verified · +91", tag: "must", input: "phone" },
+      { id: "poc2name", name: "Second POC name", desc: "Optional — alternate contact if the primary POC is unavailable", section: "Second POC (optional)", extra: true, tag: "opt", input: "text" },
+      { id: "poc2desig", name: "Second POC designation", tag: "opt", extra: true, input: "text", placeholder: "e.g. HR Executive" },
+      { id: "poc2email", name: "Second POC email", tag: "opt", extra: true, input: "email" },
+      { id: "poc2mobile", name: "Second POC mobile", desc: "+91", tag: "opt", extra: true, input: "phone" },
     ],
   },
   {
@@ -84,7 +88,7 @@ export const ONBOARDING_STAGES = [
       { id: "departments", name: "Department", desc: "Select the departments you hire for", tag: "opt", input: "dept-groups" },
       { id: "branches", name: "Branches", desc: "Additional office or facility locations - search and pick cities", tag: "opt", input: "city-multi", placeholder: "Select branch cities" },
       { id: "policies", name: "Company policies & benefits", desc: "Facilities and benefits candidates should know about", tag: "opt", input: "multi", options: ["Night shift meal", "Cab / transport facility", "Health insurance", "Provident Fund (PF)", "Performance incentives", "Hybrid / work from home", "Paid leave policy", "Training & certification support", "Other"] },
-      { id: "projects", name: "Projects", desc: "Pick a domain and project, or choose Other to type your own", tag: "opt", input: "projects-list" },
+      { id: "projects", name: "Projects", desc: "Pick a domain, tick one or more projects (or Select all), or add your own under Other", tag: "opt", input: "projects-list" },
     ],
   },
   {
@@ -299,13 +303,13 @@ export function getStage(id) {
 
 export function stageTotalFields(id) {
   const stage = getStage(id);
-  return stage ? stage.items.length : 0;
+  return stage ? stage.items.filter((i) => !i.extra).length : 0;
 }
 
 export function stageDoneFields(id, savedData) {
   const stage = getStage(id);
   if (!stage || !savedData) return 0;
-  return stage.items.filter((item) => {
+  return stage.items.filter((item) => !item.extra).filter((item) => {
     const v = savedData[item.id];
     if (v === undefined || v === null) return false;
     if (typeof v === "string") return v.trim() !== "";
@@ -319,7 +323,7 @@ export function stageDoneFields(id, savedData) {
   }).length;
 }
 
-export const TOTAL_FIELDS = ONBOARDING_STAGES.reduce((sum, s) => sum + s.items.length, 0);
+export const TOTAL_FIELDS = ONBOARDING_STAGES.reduce((sum, s) => sum + s.items.filter((i) => !i.extra).length, 0);
 
 // A company that has filled every one of the TOTAL_FIELDS onboarding
 // fields AND been KYC-verified shouldn't have to see the 9-section wizard
