@@ -3,7 +3,7 @@ import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import CollegePicker from "../CollegePicker.jsx";
 import SearchableSelect from "../SearchableSelect.jsx";
-import { CITIES_BY_STATE } from "../../data/indianCities.js";
+import { CITIES_BY_STATE, INDIAN_CITIES } from "../../data/indianCities.js";
 import { verhoeffValidate, formatAadhaar, formatMobile, isValidIndianMobile } from "../../utils/verhoeff";
 import { getCandidateType } from "../../utils/candidateType.js";
 
@@ -22,6 +22,15 @@ const POPULAR_CITIES = [
   "Delhi NCR", "Noida", "Gurgaon", "Kolkata", "Ahmedabad", "Jaipur",
   "Kochi", "Trivandrum", "Mysore", "Chandigarh", "Indore", "Nagpur",
   "Bhubaneswar", "Visakhapatnam", "Trichy", "Madurai", "Salem"
+];
+
+// Popular cities first, then every other Indian city/town (a city already listed under another spelling is skipped).
+const POPULAR_LOWER = new Set(POPULAR_CITIES.map((c) => c.toLowerCase()));
+const ALL_CITY_OPTIONS = [
+  ...POPULAR_CITIES,
+  ...INDIAN_CITIES
+    .filter(({ city, aliases }) => !POPULAR_LOWER.has(city.toLowerCase()) && !(aliases || []).some((a) => POPULAR_LOWER.has(String(a).toLowerCase())))
+    .map(({ city }) => city),
 ];
 
 // Course Name options are keyed by BOTH the Academic Stream (Life Science /
@@ -3271,18 +3280,15 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
               </div>
               {cityInputOpen && (
                 <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
-                  <select
-                    value={selectedCityOption}
-                    onChange={(e) => setSelectedCityOption(e.target.value)}
-                    style={{ maxWidth: 220 }}
-                  >
-                    <option value="">Select a city…</option>
-                    {POPULAR_CITIES.filter((c) => !preferredCities.includes(c)).map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
+                  <div style={{ width: 260 }}>
+                    <SearchableSelect
+                      value={selectedCityOption}
+                      options={ALL_CITY_OPTIONS.filter((c) => !preferredCities.includes(c))}
+                      placeholder="Select a city…"
+                      searchPlaceholder="Type to search any city in India…"
+                      onChange={(v) => setSelectedCityOption(v)}
+                    />
+                  </div>
                   <button
                     type="button"
                     className="action-btn small"

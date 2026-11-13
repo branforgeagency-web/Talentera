@@ -19,6 +19,7 @@ import CompanyBilling from "./pages/CompanyBilling.jsx";
 import Jobs from "./pages/Jobs.jsx";
 import AcademyLogin from "./pages/AcademyLogin.jsx";
 import AcademyPortal from "./pages/AcademyPortal.jsx";
+import AcademyCoordinatorActivate from "./pages/AcademyCoordinatorActivate.jsx";
 import StaffLogin from "./pages/StaffLogin.jsx";
 import StaffHub from "./pages/StaffHub.jsx";
 import ResumeBuilder from "./pages/ResumeBuilder.jsx";
@@ -202,6 +203,7 @@ export default function App() {
       <Route path="/academies/login" element={<AcademyLogin />} />
       <Route path="/academy/register" element={<AcademyLogin />} />
       <Route path="/academies/register" element={<AcademyLogin />} />
+      <Route path="/academy/coordinator/activate" element={<AcademyCoordinatorActivate />} />
       <Route path="/academy/*" element={<AcademyPortal />} />
 
       {/* 05. Staff & Employee Operations Hub */}

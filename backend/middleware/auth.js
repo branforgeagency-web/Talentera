@@ -189,6 +189,21 @@ async function requireAcademyAuth(req, res, next) {
       return res.status(401).json({ message: "Invalid or expired academy token." });
     }
     req.academyId = decoded.id;
+    if (decoded.coordinatorId) {
+      try {
+        const AcademyCoordinator = require("../models/AcademyCoordinator");
+        const coordinator = await AcademyCoordinator.findById(decoded.coordinatorId).lean();
+        if (!coordinator || coordinator.status !== "active" || String(coordinator.academyId) !== String(decoded.id)) {
+          return res.status(401).json({ message: "Your branch coordinator login is disabled or invalid." });
+        }
+        req.coordinator = coordinator;
+        req.isBranchCoordinator = true;
+        req.branchName = coordinator.branchName;
+        req.branchCity = coordinator.branchCity;
+      } catch (cErr) {
+        return res.status(401).json({ message: "Error verifying branch coordinator account." });
+      }
+    }
     next();
   } catch (err) {
     return res.status(401).json({ message: "Invalid or expired token." });
@@ -324,4 +339,22 @@ function signCompanyUserToken(companyId, userId) {
   });
 }
 
-module.exports = { requireCompanyHead, signCompanyUserToken, requireAuth, requireCompanyAuth, requireAcademyAuth, requireStaffAuth, requireCollegeAuth, signToken, JWT_SECRET };
+// Session token for a branch coordinator login: academy access scoped to branch.
+function signAcademyCoordinatorToken(academyId, coordinatorId, branchName, branchCity) {
+  return jwt.sign(
+    {
+      id: String(academyId),
+      role: "academy",
+      coordinatorId: String(coordinatorId),
+      isCoordinator: true,
+      branchName: branchName || "",
+      branchCity: branchCity || "",
+    },
+    JWT_SECRET,
+    {
+      expiresIn: process.env.JWT_EXPIRES_IN || "30d",
+    }
+  );
+}
+
+module.exports = { requireCompanyHead, signCompanyUserToken, signAcademyCoordinatorToken, requireAuth, requireCompanyAuth, requireAcademyAuth, requireStaffAuth, requireCollegeAuth, signToken, JWT_SECRET };

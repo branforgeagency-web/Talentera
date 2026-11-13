@@ -14,7 +14,6 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const Candidate = require("../models/Candidate");
 const { fillExperiencedMock } = require("../utils/mockExperienced");
-const { calculateVerificationScore } = require("../utils/verificationScore");
 
 (async () => {
   if (process.env.NODE_ENV === "production") { console.error("Refusing to seed mock data in production."); process.exit(1); }

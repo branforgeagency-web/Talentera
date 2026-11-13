@@ -92,7 +92,6 @@ async function fillExperiencedMock(c, email) {
   c.markModified("documentVault");
   c.isSubmitted = true;
   c.submittedAt = new Date();
-  const sc = calculateVerificationScore(c.completedStages, c);
   c.isVerified = true;
   c.verificationReadiness = { ...(c.verificationReadiness || {}), readinessStatus: "VERIFIED", verifiedAt: new Date() };
   return calculateVerificationScore(c.completedStages, c);

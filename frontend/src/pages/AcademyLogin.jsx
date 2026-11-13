@@ -82,6 +82,11 @@ export default function AcademyLogin() {
         if (res.ok && data.token) {
           localStorage.setItem("talentera_academy_token", data.token);
           localStorage.setItem("talentera_academy_info", JSON.stringify(data.academy));
+          if (data.isBranchCoordinator && data.coordinator) {
+            localStorage.setItem("talentera_coordinator_info", JSON.stringify(data.coordinator));
+          } else {
+            localStorage.removeItem("talentera_coordinator_info");
+          }
           navigate("/academy/dashboard");
         } else {
           setError(data.message || "Login failed. Please check your email and password.");

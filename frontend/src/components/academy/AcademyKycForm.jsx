@@ -327,7 +327,23 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
   };
 
   const addBranch = () =>
-    setFormData((prev) => ({ ...prev, branches: [...(prev.branches || []), { name: "", city: "", state: "", address: "", phone: "" }] }));
+    setFormData((prev) => ({
+      ...prev,
+      branches: [
+        ...(prev.branches || []),
+        {
+          name: "",
+          city: "",
+          state: "",
+          address: "",
+          phone: "",
+          coordinatorName: "",
+          coordinatorDesignation: "Placement Coordinator",
+          coordinatorEmail: "",
+          coordinatorMobile: "",
+        },
+      ],
+    }));
   const updateBranch = (idx, field, value) =>
     setFormData((prev) => ({ ...prev, branches: prev.branches.map((b, i) => (i === idx ? { ...b, [field]: value } : b)) }));
   const addCourse = () =>
@@ -1254,6 +1270,60 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
                     />
                     <input type="text" value={b.phone || ""} onChange={(e) => updateBranch(idx, "phone", e.target.value)} placeholder="Branch contact number" style={{ width: "100%", padding: "9px 12px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }} />
                     <input type="text" value={b.address || ""} onChange={(e) => updateBranch(idx, "address", e.target.value)} placeholder="Full address" style={{ width: "100%", padding: "9px 12px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+                  </div>
+
+                  {/* Branch Placement Coordinator Section */}
+                  <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px dashed #CBD5E1" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <UserCheck size={16} color="#0A1F3D" />
+                        <span style={{ fontSize: 13, fontWeight: 800, color: "#0A1F3D" }}>Branch Placement Coordinator</span>
+                      </div>
+                      <span style={{ fontSize: 11, color: "#64748B", fontWeight: 600 }}>Talentera dispatches login credentials upon registration</span>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+                      <div>
+                        <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 4 }}>COORDINATOR NAME</label>
+                        <input
+                          type="text"
+                          value={b.coordinatorName || ""}
+                          onChange={(e) => updateBranch(idx, "coordinatorName", e.target.value)}
+                          placeholder="e.g. Ramesh Kumar"
+                          style={BRANCH_FIELD_STYLE}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 4 }}>DESIGNATION</label>
+                        <input
+                          type="text"
+                          value={b.coordinatorDesignation || ""}
+                          onChange={(e) => updateBranch(idx, "coordinatorDesignation", e.target.value)}
+                          placeholder="e.g. Placement Coordinator"
+                          style={BRANCH_FIELD_STYLE}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 4 }}>OFFICIAL EMAIL ID</label>
+                        <input
+                          type="email"
+                          value={b.coordinatorEmail || ""}
+                          onChange={(e) => updateBranch(idx, "coordinatorEmail", e.target.value)}
+                          placeholder="coordinator@academy.com"
+                          style={BRANCH_FIELD_STYLE}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 4 }}>CONTACT NO.</label>
+                        <input
+                          type="tel"
+                          value={b.coordinatorMobile || ""}
+                          onChange={(e) => updateBranch(idx, "coordinatorMobile", e.target.value)}
+                          placeholder="e.g. 9876543210"
+                          style={BRANCH_FIELD_STYLE}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))}

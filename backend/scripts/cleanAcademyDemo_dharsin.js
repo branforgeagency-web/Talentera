@@ -7,11 +7,17 @@ const mongoose = require(path.join(baseDir, 'node_modules/mongoose'));
 
 const Academy = require(path.join(baseDir, 'models/Academy'));
 const AcademyBatch = require(path.join(baseDir, 'models/AcademyBatch'));
+const AcademyCoordinator = require(path.join(baseDir, 'models/AcademyCoordinator'));
 const Candidate = require(path.join(baseDir, 'models/Candidate'));
 const StudentInvite = require(path.join(baseDir, 'models/StudentInvite'));
 const PlacementConfirmation = require(path.join(baseDir, 'models/PlacementConfirmation'));
 const AcademyActivityEvent = require(path.join(baseDir, 'models/AcademyActivityEvent'));
 const Application = require(path.join(baseDir, 'models/Application'));
+const AcademyMou = require(path.join(baseDir, 'models/AcademyMou'));
+const AcademyReferral = require(path.join(baseDir, 'models/AcademyReferral'));
+const AcademyPayment = require(path.join(baseDir, 'models/AcademyPayment'));
+const AcademyAssessment = require(path.join(baseDir, 'models/AcademyAssessment'));
+const AcademyAssessmentResult = require(path.join(baseDir, 'models/AcademyAssessmentResult'));
 
 async function cleanDemo() {
   await mongoose.connect(process.env.MONGO_URI);
@@ -26,30 +32,50 @@ async function cleanDemo() {
   }
   const academyId = academy._id;
 
-  // 1. Delete candidates created with demo email pattern
+  // 1. Delete candidates created with demo email pattern & their applications
   const demoCands = await Candidate.find({ email: { $regex: /^demo\.apex\./i } });
   const candIds = demoCands.map(c => c._id);
-  await Application.deleteMany({ candidateId: { $in: candIds } });
+  const appDel = await Application.deleteMany({ candidateId: { $in: candIds } });
   const candDel = await Candidate.deleteMany({ _id: { $in: candIds } });
-  console.log(`Deleted ${candDel.deletedCount} demo candidates & their applications.`);
+  console.log(`Deleted ${candDel.deletedCount} demo candidates & ${appDel.deletedCount} applications.`);
 
   // 2. Delete batches, invites, placements, activity events
   const batchDel = await AcademyBatch.deleteMany({ academyId });
   const inviteDel = await StudentInvite.deleteMany({ academyId });
   const placeDel = await PlacementConfirmation.deleteMany({ academyId });
   const eventDel = await AcademyActivityEvent.deleteMany({ academyId });
-  console.log(`Deleted ${batchDel.deletedCount} batches, ${inviteDel.deletedCount} invites, ${placeDel.deletedCount} placement confirmations, ${eventDel.deletedCount} activity events.`);
+  console.log(`Deleted ${batchDel.deletedCount} batches, ${inviteDel.deletedCount} invites, ${placeDel.deletedCount} placements, ${eventDel.deletedCount} events.`);
 
-  // 3. Reset Academy fields to clean state
+  // 3. Delete MoUs, Referrals, Payments, Assessments & Results
+  const mouDel = await AcademyMou.deleteMany({ academyId });
+  const refDel = await AcademyReferral.deleteMany({ academyId });
+  const payDel = await AcademyPayment.deleteMany({ academyId });
+  const assDel = await AcademyAssessment.deleteMany({ academyId });
+  const resDel = await AcademyAssessmentResult.deleteMany({ academyId });
+  console.log(`Deleted ${mouDel.deletedCount} MoUs, ${refDel.deletedCount} referrals, ${payDel.deletedCount} payments, ${assDel.deletedCount} assessments, ${resDel.deletedCount} results.`);
+
+  // 4. Delete coordinators associated with this academy or dharsin0201@gmail.com
+  const coordDel = await AcademyCoordinator.deleteMany({
+    $or: [
+      { academyId },
+      { email: targetEmail },
+      { email: { $regex: /@apexmedicalacademy\.com$/i } }
+    ]
+  });
+  console.log(`Deleted ${coordDel.deletedCount} coordinator records.`);
+
+  // 5. Reset Academy fields to clean state
   academy.courses = [];
   academy.questions = [];
   academy.placements = [];
   academy.gallery = [];
+  academy.branches = [];
   academy.studentsUploaded = 0;
   academy.verifiedPct = 0;
   academy.kycStatus = 'pending';
+  academy.kycData = {};
   await academy.save();
-  console.log('Reset academy courses, questions, placements, and gallery.');
+  console.log('Reset academy courses, questions, placements, gallery, and KYC data.');
 
   await mongoose.disconnect();
   console.log('Demo cleanup completed successfully.');

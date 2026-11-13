@@ -24,7 +24,7 @@ const RCM_RE = /(cod|bill|\bar\b|a\/r|denial|payment|posting|charge|claim|revenu
 const stageDef = (n) => SCHEMA.find((s) => s.num === n);
 const fieldSections = (n) => (stageDef(n)?.sections || []).filter((s) => s.kind === "fields");
 
-const str = (v) => (v === undefined || v === null ? "" : String(v).replace(/\u0000/g, "").trim().slice(0, MAX_TEXT));
+const str = (v) => (v === undefined || v === null ? "" : String(v).split("\u0000").join("").trim().slice(0, MAX_TEXT));
 const isObj = (v) => v && typeof v === "object" && !Array.isArray(v);
 
 function cleanFileValue(v, uploadUrls) {
@@ -166,7 +166,6 @@ function calcExperience(employment = [], now = new Date()) {
 /* ---------------- validation ---------------- */
 function validateStage(n, data, uploads = []) {
   const errors = [];
-  const def = stageDef(n);
   const req = (obj, fields, label) => {
     for (const f of fields) if (f.required && !str(obj?.[f.key])) errors.push(`${label}${f.label} is required.`);
   };
