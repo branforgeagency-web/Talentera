@@ -31,6 +31,7 @@ const ACCREDITATION_OPTIONS = [
   "NAAC Accredited Institution",
   "Healthcare Sector Skill Council (HSSC)",
 ];
+const NO_ACCREDITATION = "Not Applicable (newly established / no accreditation yet)";
 
 const LABEL_STYLE = { display: "block", fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 6 };
 
@@ -137,7 +138,7 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
     otherSpecialtyCourses: "",
     branches: [],
     courses: [],
-    accreditations: ["AAPC Approved Education Partner"],
+    accreditations: [],
     otherAccreditation: "",
     certifiedTrainedCount: "",
     activeBatchesPerYear: "",
@@ -239,11 +240,12 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
             branches: Array.isArray(kd.branches) ? kd.branches : [],
             courses: Array.isArray(data.courses) && data.courses.length > 0 ? data.courses : Array.isArray(kd.courses) ? kd.courses : [],
             accreditations: (() => {
-              const saved = Array.isArray(kd.accreditations) && kd.accreditations.length > 0 ? kd.accreditations : ["AAPC Approved Education Partner"];
-              const standard = saved.filter((x) => ACCREDITATION_OPTIONS.includes(x));
-              return saved.some((x) => !ACCREDITATION_OPTIONS.includes(x)) ? [...standard, "Other"] : standard;
+              const saved = Array.isArray(kd.accreditations) ? kd.accreditations : [];
+              const known = [...ACCREDITATION_OPTIONS, NO_ACCREDITATION];
+              const standard = saved.filter((x) => known.includes(x));
+              return saved.some((x) => !known.includes(x)) ? [...standard, "Other"] : standard;
             })(),
-            otherAccreditation: (Array.isArray(kd.accreditations) ? kd.accreditations : []).filter((x) => !ACCREDITATION_OPTIONS.includes(x)).join(", "),
+            otherAccreditation: (Array.isArray(kd.accreditations) ? kd.accreditations : []).filter((x) => ![...ACCREDITATION_OPTIONS, NO_ACCREDITATION].includes(x)).join(", "),
             certifiedTrainedCount: kd.certifiedTrainedCount || (ac.totalAlumni && ac.totalAlumni !== "0" && ac.totalAlumni !== "35,000+" ? ac.totalAlumni : ""),
             activeBatchesPerYear: kd.activeBatchesPerYear || "",
             regCertificateUrl: kd.regCertificateUrl || "",
@@ -273,9 +275,12 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
   const handleAccreditationToggle = (item) => {
     setFormData((prev) => {
       const exists = prev.accreditations.includes(item);
+      // "Not Applicable" excludes every other choice; picking a real accreditation clears it.
       const updated = exists
         ? prev.accreditations.filter((x) => x !== item)
-        : [...prev.accreditations, item];
+        : item === NO_ACCREDITATION
+          ? [NO_ACCREDITATION]
+          : [...prev.accreditations.filter((x) => x !== NO_ACCREDITATION), item];
       return { ...prev, accreditations: updated };
     });
   };
@@ -1132,7 +1137,7 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
 
           <div>
             <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 10 }}>
-              Recognized Accreditations &amp; Affiliations (Select all that apply)
+              Recognized Accreditations &amp; Affiliations (Optional - select all that apply, or Not Applicable)
             </label>
             <div style={{ position: "relative", maxWidth: 520 }}>
               <button
@@ -1143,13 +1148,13 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {formData.accreditations.length
                     ? formData.accreditations.map((x) => (x === "Other" ? (formData.otherAccreditation.trim() ? `Other: ${formData.otherAccreditation.trim()}` : "Other") : x)).join(", ")
-                    : "Select accreditations & affiliations"}
+                    : "Optional - select accreditations, or Not Applicable"}
                 </span>
                 <span style={{ marginLeft: 8, fontSize: 10 }}>{accOpen ? "▲" : "▼"}</span>
               </button>
               {accOpen && (
                 <div style={{ position: "absolute", zIndex: 20, left: 0, right: 0, marginTop: 4, background: "#fff", border: "1px solid #CBD5E1", borderRadius: 8, boxShadow: "0 8px 24px rgba(15,23,42,0.12)", padding: 6 }}>
-                  {[...ACCREDITATION_OPTIONS, "Other"].map((acc) => {
+                  {[...ACCREDITATION_OPTIONS, "Other", NO_ACCREDITATION].map((acc) => {
                     const checked = formData.accreditations.includes(acc);
                     return (
                       <label key={acc} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 6, cursor: "pointer", fontSize: 12.5, fontWeight: checked ? 700 : 500, background: checked ? "#F8FAFC" : "#fff", color: "#0A1F3D" }}>

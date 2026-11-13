@@ -28,6 +28,7 @@ const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
 const logger = require("../utils/logger");
 
 const router = express.Router();
+router.use(require("../middleware/academyHeadOnly").academyHeadOnlyGuard); // Branch Coordinators: no KYC / settings / payments / etc.
 
 const DASHBOARD_FETCH_CAP = 500;
 
@@ -542,11 +543,40 @@ async function getTargetBranchBatchCodes(academyId, targetBranch) {
 
 // Ownership guard: an academy may only open or act on its OWN candidates (linked by
 // stage2.academyId, invited by it, or exact-name match) - never someone else's by ID.
+// The academy's candidate filter - narrowed to the coordinator's own branch when a Branch Placement Coordinator is logged in.
+async function academyCandidateFilterFor(req, academy, invites) {
+  if (!req.isBranchCoordinator) return buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+  const codes = await getTargetBranchBatchCodes(req.academyId, req.branchName);
+  return buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites, req.branchName, codes);
+}
+
+// Batch codes a coordinator may see (null = no restriction for the Academy Head).
+async function coordinatorBatchCodes(req) {
+  if (!req.isBranchCoordinator) return null;
+  return getTargetBranchBatchCodes(req.academyId, req.branchName);
+}
+
+// ids of the candidates a coordinator may see (null for the Academy Head = no restriction)
+async function branchCandidateIds(req) {
+  if (!req.isBranchCoordinator) return null;
+  const academy = await Academy.findById(req.academyId).lean();
+  const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
+  const filter = await academyCandidateFilterFor(req, academy, invites);
+  return (await Candidate.find(filter).select("_id").lean()).map((c) => c._id);
+}
+
+// Is this candidate inside the logged-in coordinator's branch? (always true for the Academy Head)
+async function coordinatorCanSee(req, candidateId) {
+  if (!req.isBranchCoordinator) return true;
+  const ids = await branchCandidateIds(req);
+  return ids.some((i) => String(i) === String(candidateId));
+}
+
 async function findOwnedCandidate(req, candidateId) {
   if (!candidateId || !require("mongoose").Types.ObjectId.isValid(String(candidateId))) return null;
   const academy = await Academy.findById(req.academyId).lean();
   const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
-  const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+  const filter = await academyCandidateFilterFor(req, academy, invites);
   return Candidate.findOne({ $and: [filter, { _id: candidateId }] });
 }
 
@@ -1981,7 +2011,7 @@ router.post("/students/chart-stats/upload-csv", requireAcademyAuth, upload.singl
     // Scope to this academy's own students only - the same filter the dashboard
     // and every other student-facing academy endpoint uses.
     const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
-    const filter = buildAcademyCandidateFilter(req.academyId, academy.name, invites);
+    const filter = await academyCandidateFilterFor(req, academy, invites);
     const myCandidates = await Candidate.find(filter, { email: 1, completedStages: 1, stage1: 1, stage2: 1 }).lean();
     const candidateByEmail = new Map(myCandidates.map((c) => [(c.email || "").toLowerCase().trim(), c]));
 
@@ -2081,7 +2111,7 @@ router.post("/students/chart-stats/upload-confirm", requireAcademyAuth, async (r
     }
 
     const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
-    const filter = buildAcademyCandidateFilter(req.academyId, academy.name, invites);
+    const filter = await academyCandidateFilterFor(req, academy, invites);
     const myCandidateIds = new Set((await Candidate.find(filter, { _id: 1 }).lean()).map((c) => c._id.toString()));
 
     const updated = [];
@@ -2583,6 +2613,7 @@ router.get("/uploads", requireAcademyAuth, async (req, res) => {
     const { batch_id, batchCode } = req.query;
     const query = { academyId: req.academyId };
     if (batch_id || batchCode) query.batchCode = batch_id || batchCode;
+    { const codes = await coordinatorBatchCodes(req); if (codes) { const want = batch_id || batchCode; query.batchCode = want ? (codes.includes(want) ? want : { $in: [] }) : { $in: codes }; } }
 
     const uploads = await StudentUpload.find(query).sort({ createdAt: -1 }).limit(50).lean();
     res.json({ uploads });
@@ -2597,6 +2628,7 @@ router.get("/invites", requireAcademyAuth, async (req, res) => {
     const { batch_id, batchCode, status, search } = req.query;
     const query = { academyId: req.academyId };
     if (batch_id || batchCode) query.batchCode = batch_id || batchCode;
+    { const codes = await coordinatorBatchCodes(req); if (codes) { const want = batch_id || batchCode; query.batchCode = want ? (codes.includes(want) ? want : { $in: [] }) : { $in: codes }; } }
     if (status && status !== "All") query.status = status.toLowerCase();
     if (search) {
       query.$or = [
@@ -2635,6 +2667,7 @@ router.post("/invites/:id/resend", requireAcademyAuth, async (req, res) => {
   try {
     const invite = await StudentInvite.findOne({ _id: req.params.id, academyId: req.academyId });
     if (!invite) return res.status(404).json({ message: "Invite not found." });
+    { const codes = await coordinatorBatchCodes(req); if (codes && !codes.includes(invite.batchCode)) return res.status(403).json({ message: "This invite belongs to another branch." }); }
 
     invite.resendCount += 1;
     invite.emailSentAt = new Date();
@@ -3086,7 +3119,7 @@ router.get("/scores-analytics", requireAcademyAuth, async (req, res) => {
   try {
     const academy = await Academy.findById(req.academyId).lean();
     const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
-    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+    const filter = await academyCandidateFilterFor(req, academy, invites);
 
     const candidates = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
 
@@ -3201,7 +3234,7 @@ router.get("/company-data", requireAcademyAuth, async (req, res) => {
   try {
     const academy = await Academy.findById(req.academyId).lean();
     const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
-    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+    const filter = await academyCandidateFilterFor(req, academy, invites);
     const myCandidateIds = (await Candidate.find(filter, { _id: 1 }).limit(DASHBOARD_FETCH_CAP).lean()).map((c) => c._id);
 
     const publicRouter = require("./public");
@@ -3953,6 +3986,8 @@ router.get("/activity", requireAcademyAuth, async (req, res) => {
     let typeFilter = null; // null = no filter (all types)
     if (batch_id || batchCode) query.batchCode = batch_id || batchCode;
     if (candidateId) query.candidateId = candidateId;
+    const scopeIds = await branchCandidateIds(req);
+    if (scopeIds) query.candidateId = candidateId ? (scopeIds.some((i) => String(i) === String(candidateId)) ? candidateId : { $in: [] }) : { $in: scopeIds };
     if (eventType && eventType !== "all") {
       typeFilter = [eventType];
       query.eventType = eventType;
@@ -3973,6 +4008,7 @@ router.get("/activity", requireAcademyAuth, async (req, res) => {
     if (wantsOffers) {
       const placementQuery = { academyId: req.academyId };
       if (candidateId) placementQuery.candidateId = candidateId;
+      if (scopeIds) placementQuery.candidateId = candidateId ? (scopeIds.some((i) => String(i) === String(candidateId)) ? candidateId : { $in: [] }) : { $in: scopeIds };
       if (batch_id || batchCode) placementQuery.batchCode = batch_id || batchCode;
 
       const [placements, existingOfferEvents] = await Promise.all([
@@ -4030,11 +4066,13 @@ router.get("/activity-stream", requireAcademyAuth, async (req, res) => {
   // backend/utils/academyEvents.js - go out, and they go out within one
   // poll tick instead of up to 15s later.
   let lastSeenCreatedAt = new Date();
+  const streamScopeIds = await branchCandidateIds(req).catch(() => []);
   const interval = setInterval(async () => {
     try {
       const newEvents = await AcademyActivityEvent.find({
         academyId: req.academyId,
         createdAt: { $gt: lastSeenCreatedAt },
+        ...(streamScopeIds ? { candidateId: { $in: streamScopeIds } } : {}),
       })
         .sort({ createdAt: 1 })
         .limit(20)
@@ -4470,6 +4508,7 @@ router.post("/placements/:id/confirm", requireAcademyAuth, async (req, res) => {
       confirmation = await PlacementConfirmation.findOne({ _id: req.params.id, academyId: req.academyId });
     }
     if (!confirmation) return res.status(404).json({ message: "Placement confirmation not found." });
+    if (!(await coordinatorCanSee(req, confirmation.candidateId))) return res.status(403).json({ message: "This placement belongs to another branch." });
 
     confirmation.status = "confirmed";
     confirmation.academyConfirmed = true;
@@ -4516,6 +4555,7 @@ router.post("/placements/:id/dispute", requireAcademyAuth, async (req, res) => {
     const { reason = "Student joined a different firm or offer was rescinded." } = req.body;
     let confirmation = await PlacementConfirmation.findOne({ _id: req.params.id, academyId: req.academyId });
     if (!confirmation) return res.status(404).json({ message: "Placement confirmation not found." });
+    if (!(await coordinatorCanSee(req, confirmation.candidateId))) return res.status(403).json({ message: "This placement belongs to another branch." });
 
     confirmation.status = "disputed";
     confirmation.disputeReason = reason;
@@ -4540,6 +4580,7 @@ router.get("/placements/:id/certificate", requireAcademyAuth, async (req, res) =
     if (!confirmation) {
       return res.status(404).json({ message: "Placement confirmation not found." });
     }
+    if (!(await coordinatorCanSee(req, confirmation.candidateId))) return res.status(403).json({ message: "This placement belongs to another branch." });
 
     res.json({
       certificate: {
@@ -4574,7 +4615,7 @@ router.get("/reports/custom", requireAcademyAuth, async (req, res) => {
 
     const academy = await Academy.findById(req.academyId).lean();
     const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
-    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+    const filter = await academyCandidateFilterFor(req, academy, invites);
     const candidates = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
     const ids = candidates.map((c) => c._id);
 
@@ -4638,7 +4679,7 @@ router.get("/reports/monthly", requireAcademyAuth, async (req, res) => {
   try {
     const academy = await Academy.findById(req.academyId);
     const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
-    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+    const filter = await academyCandidateFilterFor(req, academy, invites);
     const candidates = await Candidate.find(filter).lean();
 
     const totalStudents = candidates.length;
@@ -5125,7 +5166,7 @@ router.get("/candidates/:id/placement-info", requireAcademyAuth, async (req, res
       academyId: req.academyId,
     }).sort({ createdAt: -1 });
 
-    if (!confirmation) {
+    if (!confirmation || !(await coordinatorCanSee(req, req.params.id))) {
       return res.json({ found: false });
     }
 
@@ -5284,7 +5325,7 @@ router.delete("/clear-all", requireAcademyAuth, async (req, res) => {
   try {
     const academy = await Academy.findById(req.academyId).lean();
     const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
-    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+    const filter = await academyCandidateFilterFor(req, academy, invites);
 
     await AcademyBatch.deleteMany({ academyId: req.academyId });
     await StudentInvite.deleteMany({ academyId: req.academyId });
@@ -5430,7 +5471,8 @@ router.get("/assessments/:id/results", requireAcademyAuth, async (req, res) => {
   try {
     const a = await AcademyAssessment.findOne({ _id: req.params.id, academyId: req.academyId }).lean();
     if (!a) return res.status(404).json({ message: "Assessment not found." });
-    const results = await AcademyAssessmentResult.find({ assessmentId: a._id, academyId: req.academyId }).sort({ createdAt: -1 }).lean();
+    const resultScope = await branchCandidateIds(req);
+    const results = await AcademyAssessmentResult.find({ assessmentId: a._id, academyId: req.academyId, ...(resultScope ? { candidateId: { $in: resultScope } } : {}) }).sort({ createdAt: -1 }).lean();
     const cands = await Candidate.find({ _id: { $in: results.map((r) => r.candidateId) } }, { "stage1.fullName": 1, email: 1 }).lean();
     const byId = new Map(cands.map((c) => [String(c._id), c]));
     res.json({
@@ -5485,7 +5527,7 @@ router.post("/assessments/scores/manual", requireAcademyAuth, async (req, res) =
     if (!Number.isFinite(pct) || pct < 0 || pct > 100) return res.status(400).json({ message: "Score must be a number between 0 and 100." });
     const academy = await Academy.findById(req.academyId).lean();
     const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
-    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+    const filter = await academyCandidateFilterFor(req, academy, invites);
     const mine = await Candidate.findOne({ $and: [filter, { _id: candidateId }] }, { email: 1 }).lean();
     if (!mine) return res.status(404).json({ message: "That student is not one of your academy's students." });
     await AcademyAssessmentResult.create({
@@ -5517,7 +5559,7 @@ router.post("/assessments/scores/upload", requireAcademyAuth, upload.single("fil
     if (rows.length === 0) return res.status(400).json({ message: "No score rows found in the file." });
     const academy = await Academy.findById(req.academyId).lean();
     const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
-    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+    const filter = await academyCandidateFilterFor(req, academy, invites);
     const mine = await Candidate.find(filter, { email: 1 }).limit(DASHBOARD_FETCH_CAP).lean();
     const byEmail = new Map(mine.map((c) => [String(c.email || "").toLowerCase().trim(), c]));
 

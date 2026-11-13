@@ -245,8 +245,13 @@ function validateStage(n, data, uploads = []) {
       req(e, fieldSections(3)[0].fields, L);
       const s = parseDate(e.dateOfJoining);
       if (e.dateOfJoining && (!s || s > today)) errors.push(`${L}Date of Joining is invalid or in the future.`);
-      if (e.currentlyWorkingHere === "Yes") currentCount += 1;
-      else if (!e.lastWorkingDate) errors.push(`${L}Last Working Date is required (or mark Currently Working Here = Yes).`);
+      if (e.currentlyWorkingHere === "Yes") {
+        currentCount += 1;
+        // Still working / serving notice: an expected last working date is optional and may be in the future.
+        const exp = e.lastWorkingDate ? parseDate(e.lastWorkingDate) : null;
+        if (e.lastWorkingDate && !exp) errors.push(`${L}Expected Last Working Date is invalid.`);
+        else if (exp && s && exp < s) errors.push(`${L}Expected Last Working Date is before the Date of Joining.`);
+      } else if (!e.lastWorkingDate) errors.push(`${L}Last Working Date is required (or mark Currently Working Here = Yes).`);
       else {
         const l = parseDate(e.lastWorkingDate);
         if (!l || l > today) errors.push(`${L}Last Working Date is invalid or in the future.`);
