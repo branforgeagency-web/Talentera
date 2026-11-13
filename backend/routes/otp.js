@@ -71,6 +71,7 @@ router.post("/send", otpLimiter, async (req, res) => {
       return res.json({
         success: true,
         message: `OTP sent successfully to ${email} via Email.`,
+        devOtp: process.env.NODE_ENV !== "production" ? generatedOtp : undefined,
       });
     } catch (err) {
       const errorData = err.response?.data || err.message;

@@ -21,7 +21,7 @@ const authLimiter = rateLimit({
  */
 const otpLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
-  max: 8,
+  max: process.env.NODE_ENV === "production" ? 8 : 60,
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: "Too many OTP requests. Please wait a few minutes before trying again." },

@@ -140,7 +140,11 @@ export default function AcademyPortal() {
   useEffect(() => {
     const path = location.pathname.replace(/\/$/, "");
     if (path === "/academy/kyc") {
-      setActiveMod("kyc");
+      if (dashData?.isBranchCoordinator) {
+        setActiveMod("home");
+      } else {
+        setActiveMod("kyc");
+      }
     } else if (path === "/academy/dashboard" || path === "/academy") {
       setActiveMod("home");
     } else if (path.startsWith("/academy/candidates")) {
@@ -185,6 +189,7 @@ export default function AcademyPortal() {
   }, [location.pathname]);
 
   const handleNavigateMod = (modId) => {
+    if (modId === "kyc" && dashData?.isBranchCoordinator) modId = "home";
     if (modId === "invites") modId = "upload";
     if (modId === "approvals") modId = "verification";
     setActiveMod(modId);
@@ -550,6 +555,9 @@ export default function AcademyPortal() {
       const data = await safeJson(res);
       if (data) {
         setDashData(data);
+        if (data.isBranchCoordinator) {
+          setSettingsSubTab("Branches & Coordinators");
+        }
         if (data.academy) {
           // Account Profile now reads from the Institutional KYC record first
           // (the data the academy actually submitted for Staff audit), falling
@@ -1309,51 +1317,53 @@ export default function AcademyPortal() {
         <aside style={{ background: "#06152A", color: "#94A3B8", padding: "18px 12px", borderRight: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", justifyContent: "space-between", height: "100%", overflowY: "auto", flexShrink: 0 }}>
           <div>
             <div style={{ fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.35)", letterSpacing: "0.1em", padding: "0 8px 6px", textTransform: "uppercase" }}>OPERATIONS</div>
-            <SidebarItem
-              id="kyc"
-              label="KYC Verification"
-              icon="fa-shield-halved"
-              activeMod={activeMod}
-              setActiveMod={handleNavigateMod}
-              badge={
-                dashData?.academy?.kycStatus === "verified"
-                  ? "Verified"
-                  : dashData?.academy?.kycStatus === "under_review"
-                  ? "In Review"
-                  : dashData?.academy?.kycStatus === "rejected"
-                  ? "Action Req"
-                  : "Pending"
-              }
-              badgeColor={
-                dashData?.academy?.kycStatus === "verified"
-                  ? "#16A34A"
-                  : dashData?.academy?.kycStatus === "under_review"
-                  ? "#2563EB"
-                  : dashData?.academy?.kycStatus === "rejected"
-                  ? "#DC2626"
-                  : "#D97706"
-              }
-            />
-            <SidebarItem id="home" label="1. Home" icon="fa-house" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="candidates" label="2. Candidates" icon="fa-users" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={students.length > 0 ? students.length : undefined} locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="upload" label="3. Upload Candidates" icon="fa-cloud-arrow-up" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="assessment" label="4. Academy Assessment" icon="fa-file-pen" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="verification" label="5. Verification Tracker" icon="fa-list-check" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined} badgeColor="#CA8A04" locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="academy_courses" label="6. Academy Courses" icon="fa-book-open" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
+            {!dashData?.isBranchCoordinator && (
+              <SidebarItem
+                id="kyc"
+                label="KYC Verification"
+                icon="fa-shield-halved"
+                activeMod={activeMod}
+                setActiveMod={handleNavigateMod}
+                badge={
+                  dashData?.academy?.kycStatus === "verified"
+                    ? "Verified"
+                    : dashData?.academy?.kycStatus === "under_review"
+                    ? "In Review"
+                    : dashData?.academy?.kycStatus === "rejected"
+                    ? "Action Req"
+                    : "Pending"
+                }
+                badgeColor={
+                  dashData?.academy?.kycStatus === "verified"
+                    ? "#16A34A"
+                    : dashData?.academy?.kycStatus === "under_review"
+                    ? "#2563EB"
+                    : dashData?.academy?.kycStatus === "rejected"
+                    ? "#DC2626"
+                    : "#D97706"
+                }
+              />
+            )}
+            <SidebarItem id="home" label="1. Home" icon="fa-house" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={!dashData?.isBranchCoordinator && dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="candidates" label="2. Candidates" icon="fa-users" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={students.length > 0 ? students.length : undefined} locked={!dashData?.isBranchCoordinator && dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="upload" label="3. Upload Candidates" icon="fa-cloud-arrow-up" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={!dashData?.isBranchCoordinator && dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="assessment" label="4. Academy Assessment" icon="fa-file-pen" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={!dashData?.isBranchCoordinator && dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="verification" label="5. Verification Tracker" icon="fa-list-check" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined} badgeColor="#CA8A04" locked={!dashData?.isBranchCoordinator && dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="academy_courses" label="6. Academy Courses" icon="fa-book-open" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={!dashData?.isBranchCoordinator && dashData?.academy?.kycStatus !== "verified"} />
 
             <div style={{ fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.35)", letterSpacing: "0.1em", padding: "16px 8px 6px", textTransform: "uppercase" }}>TALENT & MATCHING</div>
-            <SidebarItem id="scores" label="7. Talentera Scores" icon="fa-award" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="profile_live" label="8. Profile Live" icon="fa-shield-halved" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={liveProfilesData.length > 0 ? liveProfilesData.length : undefined} badgeColor="#16A34A" locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="company_activity" label="9. Company Data" icon="fa-building" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="interviews" label="10. Interviews" icon="fa-diagram-project" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="placements" label="11. Placements" icon="fa-briefcase" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={placementConfirmations.filter((c) => c.status === "pending").length || undefined} badgeColor="#15803D" locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="scores" label="7. Talentera Scores" icon="fa-award" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={!dashData?.isBranchCoordinator && dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="profile_live" label="8. Profile Live" icon="fa-shield-halved" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={liveProfilesData.length > 0 ? liveProfilesData.length : undefined} badgeColor="#16A34A" locked={!dashData?.isBranchCoordinator && dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="company_activity" label="9. Company Data" icon="fa-building" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={!dashData?.isBranchCoordinator && dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="interviews" label="10. Interviews" icon="fa-diagram-project" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={!dashData?.isBranchCoordinator && dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="placements" label="11. Placements" icon="fa-briefcase" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={placementConfirmations.filter((c) => c.status === "pending").length || undefined} badgeColor="#15803D" locked={!dashData?.isBranchCoordinator && dashData?.academy?.kycStatus !== "verified"} />
 
             <div style={{ fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.35)", letterSpacing: "0.1em", padding: "16px 8px 6px", textTransform: "uppercase" }}>INSIGHTS & ADMIN</div>
-            <SidebarItem id="analytics" label="13. Analytics" icon="fa-chart-pie" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="referrals" label="14. Academy Referrals" icon="fa-handshake" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="college_mous" label="15. College MoUs" icon="fa-file-signature" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="notifications" label="16. Notifications" icon="fa-bell" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={notificationsData.unreadCount > 0 ? notificationsData.unreadCount : undefined} badgeColor="#DC2626" locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="settings" label="17. Academy Settings" icon="fa-gear" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="analytics" label="13. Analytics" icon="fa-chart-pie" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={!dashData?.isBranchCoordinator && dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="referrals" label="14. Academy Referrals" icon="fa-handshake" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={!dashData?.isBranchCoordinator && dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="college_mous" label="15. College MoUs" icon="fa-file-signature" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={!dashData?.isBranchCoordinator && dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="notifications" label="16. Notifications" icon="fa-bell" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={notificationsData.unreadCount > 0 ? notificationsData.unreadCount : undefined} badgeColor="#DC2626" locked={!dashData?.isBranchCoordinator && dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="settings" label="17. Academy Settings" icon="fa-gear" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={!dashData?.isBranchCoordinator && dashData?.academy?.kycStatus !== "verified"} />
           </div>
 
           <div onClick={() => { localStorage.removeItem("talentera_academy_token"); navigate("/academy/login"); }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 8, fontSize: 12, color: "rgba(255,255,255,0.5)", cursor: "pointer", borderTop: "1px solid rgba(255,255,255,0.08)", marginTop: 16 }}>
@@ -1488,7 +1498,7 @@ export default function AcademyPortal() {
           {/* ========================================================= */}
           {/* TOP WARNING TILE FOR KYC VERIFICATION */}
           {/* ========================================================= */}
-          {dashData?.academy?.kycStatus !== "verified" && activeMod !== "kyc" && (
+          {!dashData?.isBranchCoordinator && dashData?.academy?.kycStatus !== "verified" && activeMod !== "kyc" && (
             <div
               style={{
                 background:
@@ -1655,7 +1665,7 @@ export default function AcademyPortal() {
               Staff approve the academy's Institutional KYC. The KYC tab
               itself is always reachable so the academy can submit/track it. */}
           {/* ========================================================= */}
-          {dashData?.academy?.kycStatus !== "verified" && activeMod !== "kyc" ? (
+          {!dashData?.isBranchCoordinator && dashData?.academy?.kycStatus !== "verified" && activeMod !== "kyc" ? (
             <div
               style={{
                 background: "#FFFFFF",
@@ -1693,7 +1703,7 @@ export default function AcademyPortal() {
           {/* ========================================================= */}
           {/* KYC VERIFICATION MODULE */}
           {/* ========================================================= */}
-          {activeMod === "kyc" && (
+          {!dashData?.isBranchCoordinator && activeMod === "kyc" && (
             <>
             <div style={{ margin: "0 0 12px" }}><TimeEstimate>About {REGISTRATION_TIMINGS.academy} to complete your academy setup and KYC</TimeEstimate></div>
             <AcademyKycForm
@@ -3124,8 +3134,11 @@ export default function AcademyPortal() {
               </div>
 
               {/* Settings Sub-tabs */}
-              <div style={{ display: "flex", gap: 6, borderBottom: "1px solid #E2E8F0", paddingBottom: 10 }}>
-                {["Account", "Pictures & Videos", "Batches & Courses", "Question Bank", "Placements", "Roles & Permissions", "Webhooks"].map((tab) => (
+              <div style={{ display: "flex", gap: 6, borderBottom: "1px solid #E2E8F0", paddingBottom: 10, flexWrap: "wrap" }}>
+                {(dashData?.isBranchCoordinator
+                  ? ["Branches & Coordinators", "Batches & Courses", "Question Bank"]
+                  : ["Account", "Branches & Coordinators", "Pictures & Videos", "Batches & Courses", "Question Bank", "Placements", "Roles & Permissions", "Webhooks"]
+                ).map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setSettingsSubTab(tab)}
