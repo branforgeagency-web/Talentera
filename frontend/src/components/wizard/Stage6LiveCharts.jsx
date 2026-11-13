@@ -4,6 +4,11 @@ import { useToast } from "../Toast.jsx";
 import { isSelfTrainedCandidate, isLiveChartExemptDomain } from "../../data/wizardStages.js";
 import { getExperienceLevel } from "../../utils/careerObjective.js";
 import { computeStage6Result, EVIDENCE_LABELS, STAGE6_MAX_POINTS } from "../../utils/stage6Score.js";
+import { ACADEMIES_BY_LOCATION, ACADEMY_REGIONS, ACADEMY_LOCATIONS_BY_REGION, ACADEMY_STATE_BY_LOCATION } from "../../data/academiesData.js";
+import SearchableSelect from "./SearchableSelect.jsx";
+
+const ACADEMY_OTHER = "__academy_other__";
+const BRANCH_OTHER = "__branch_other__";
 
 /**
  * Stage 06 · Live Chart
@@ -152,6 +157,56 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved, onP
   const [platformToAdd, setPlatformToAdd] = useState("");
   const [customPlatformName, setCustomPlatformName] = useState("");
   const [academyName, setAcademyName] = useState(s6.academyName || "");
+  // Academy list: the master directory plus any academies registered on Talentera. "Other" lets the candidate type one that isn't listed.
+  const [registeredAcademies, setRegisteredAcademies] = useState([]);
+  useEffect(() => {
+    api.get("/candidate/academies")
+      .then((res) => setRegisteredAcademies(Array.isArray(res.data?.academies) ? res.data.academies : []))
+      .catch(() => {});
+  }, []);
+  const registeredAcademyNames = useMemo(() => registeredAcademies.map((a) => a.name).filter(Boolean), [registeredAcademies]);
+  const [academyState, setAcademyState] = useState(() => {
+    if (s6.academyState) return s6.academyState;
+    // older saves had no state: infer it from where the directory lists the academy
+    const loc = Object.keys(ACADEMIES_BY_LOCATION).find((l) => (ACADEMIES_BY_LOCATION[l] || []).includes(s6.academyName));
+    return (loc && ACADEMY_STATE_BY_LOCATION[loc]) || "";
+  });
+  const stateOptions = useMemo(() => ACADEMY_REGIONS.map((r) => r.name), []);
+  // locations (cities / areas) that belong to the chosen state
+  const stateLocations = useMemo(() => {
+    if (!academyState) return [];
+    return [...new Set([academyState, ...(ACADEMY_LOCATIONS_BY_REGION[academyState] || [])])];
+  }, [academyState]);
+  const academyOptions = useMemo(() => {
+    if (!academyState) return [];
+    const fromDirectory = stateLocations.flatMap((l) => ACADEMIES_BY_LOCATION[l] || []);
+    const registered = registeredAcademies
+      .filter((a) => !Array.isArray(a.branchList) || !a.branchList.length || a.branchList.some((b) => !b.state || b.state.toLowerCase() === academyState.toLowerCase()))
+      .map((a) => a.name).filter(Boolean);
+    return [...new Set([...fromDirectory, ...registered])].sort((x, y) => x.localeCompare(y));
+  }, [academyState, stateLocations, registeredAcademies]);
+  const [academyIsOther, setAcademyIsOther] = useState(
+    Boolean(s6.academyName) && !Object.values(ACADEMIES_BY_LOCATION).flat().includes(s6.academyName)
+  );
+  const [academyBranch, setAcademyBranch] = useState(s6.academyBranch || "");
+  // Branch locations of the chosen academy: every place the directory lists it, plus its registered KYC branches.
+  const branchOptions = useMemo(() => {
+    const out = [];
+    const add = (l) => { const t = String(l || "").trim(); if (t && !out.some((x) => x.toLowerCase() === t.toLowerCase())) out.push(t); };
+    if (academyName) {
+      Object.entries(ACADEMIES_BY_LOCATION).forEach(([loc, names]) => { if (names.includes(academyName) && (!academyState || stateLocations.includes(loc))) add(loc); });
+      registeredAcademies.filter((a) => a.name === academyName).forEach((a) =>
+        (Array.isArray(a.branchList) ? a.branchList : []).forEach((b) =>
+          add(b.name && b.city && b.name.toLowerCase() !== b.city.toLowerCase() ? `${b.name} (${b.city})` : b.name || b.city)));
+    }
+    return out.sort((a, b) => a.localeCompare(b));
+  }, [academyName, academyState, stateLocations, registeredAcademies]);
+  const [branchIsOther, setBranchIsOther] = useState(false);
+  useEffect(() => {
+    // an older / typed branch that is not in the list shows as "Other" so the text is kept
+    if (academyIsOther) { setBranchIsOther(true); return; } // a hand-typed academy has no branch list
+    if (academyBranch && branchOptions.length && !branchOptions.includes(academyBranch)) setBranchIsOther(true);
+  }, [branchOptions, academyIsOther]); // eslint-disable-line react-hooks/exhaustive-deps
   const [signedOffBy, setSignedOffBy] = useState(s6.signedOffBy || "");
   const [signOffDate, setSignOffDate] = useState(toDateInput(s6.signOffDate));
   const [timePracticedHours, setTimePracticedHours] = useState(s6.timePracticedHours ? String(s6.timePracticedHours) : "");
@@ -264,7 +319,9 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved, onP
         e.profile = "Enter a username and profile ID for each platform you added so staff can verify it.";
     }
     if (evidencePath === "B") {
+      if (!academyState.trim()) e.academyState = "Select the academy's state.";
       if (!academyName.trim()) e.academy = "Enter your academy name.";
+      if (!academyBranch.trim()) e.academyBranch = "Select the academy branch / location.";
       if (!signedOffBy.trim()) e.signedBy = "Enter who signed off the log.";
       if (!signOffDate) e.signDate = "Enter the sign-off date.";
     }
@@ -282,7 +339,7 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved, onP
       const re = errors.rows[r.id];
       if (re) list.push(`Specialty row ${i + 1}${r.name ? ` (${r.name})` : ""}: ${Object.values(re).join(", ")}. Fill it or remove the row.`);
     });
-    ["hours", "period", "profile", "academy", "signedBy", "signDate", "declaration"].forEach((k) => { if (errors[k]) list.push(errors[k]); });
+    ["hours", "period", "profile", "academyState", "academy", "academyBranch", "signedBy", "signDate", "declaration"].forEach((k) => { if (errors[k]) list.push(errors[k]); });
     return list;
   }, [errors, specialtyCharts]);
   const showErr = (key) => (showErrors ? errors[key] : undefined);
@@ -343,6 +400,8 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved, onP
           .map((a) => ({ platform: a.platform.trim(), url: a.url.trim(), username: a.username.trim(), profileId: a.profileId.trim() }))
       : [],
     academyName: evidencePath === "B" ? academyName.trim() : "",
+    academyBranch: evidencePath === "B" ? academyBranch.trim() : "",
+    academyState: evidencePath === "B" ? academyState.trim() : "",
     signedOffBy: evidencePath === "B" ? signedOffBy.trim() : "",
     signOffDate: evidencePath === "B" ? signOffDate : "",
     specialtyCharts:
@@ -816,8 +875,54 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved, onP
                   {evidencePath === "B" && (
                     <div style={{ background: "#FEFCE8", border: "1.5px solid #FDE047", borderRadius: 14, padding: "18px 20px", marginBottom: 16 }}>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginBottom: 16 }}>
+                        <Field label="State" required error={showErr("academyState")}>
+                          <SearchableSelect
+                            value={academyState}
+                            options={stateOptions}
+                            placeholder="-- Select state --"
+                            searchPlaceholder="Search state…"
+                            onChange={(v) => {
+                              setAcademyState(v);
+                              setAcademyName(""); setAcademyIsOther(false); setAcademyBranch(""); setBranchIsOther(false); // academy and branch depend on the state
+                            }}
+                          />
+                        </Field>
                         <Field label="Academy name" required error={showErr("academy")}>
-                          <input type="text" value={academyName} maxLength={100} onChange={(e) => setAcademyName(e.target.value)} placeholder="Academy that signed the log" style={showErr("academy") ? INPUT_ERR : INPUT} />
+                          <SearchableSelect
+                            value={academyIsOther ? ACADEMY_OTHER : academyName}
+                            options={academyOptions}
+                            disabled={!academyState}
+                            placeholder={academyState ? "-- Select academy --" : "-- Select state first --"}
+                            searchPlaceholder="Search academy name…"
+                            otherValue={ACADEMY_OTHER}
+                            otherLabel="Other (academy not listed)"
+                            onChange={(v) => {
+                              if (v === ACADEMY_OTHER) { setAcademyIsOther(true); setAcademyName(""); }
+                              else { setAcademyIsOther(false); setAcademyName(v); }
+                              setAcademyBranch(""); setBranchIsOther(false); // branches belong to the academy, so reset
+                            }}
+                          />
+                          {academyIsOther && (
+                            <input type="text" value={academyName} maxLength={100} onChange={(e) => setAcademyName(e.target.value)} placeholder="Type the academy name" style={{ ...(showErr("academy") ? INPUT_ERR : INPUT), marginTop: 8 }} />
+                          )}
+                        </Field>
+                        <Field label="Academy branch / location" required error={showErr("academyBranch")}>
+                          <SearchableSelect
+                            value={branchIsOther ? BRANCH_OTHER : academyBranch}
+                            options={branchOptions}
+                            disabled={!academyName && !academyIsOther}
+                            placeholder={academyName || academyIsOther ? "-- Select branch --" : "-- Select academy first --"}
+                            searchPlaceholder="Search branch / location…"
+                            otherValue={BRANCH_OTHER}
+                            otherLabel="Other (branch not listed)"
+                            onChange={(v) => {
+                              if (v === BRANCH_OTHER) { setBranchIsOther(true); setAcademyBranch(""); }
+                              else { setBranchIsOther(false); setAcademyBranch(v); }
+                            }}
+                          />
+                          {branchIsOther && (
+                            <input type="text" value={academyBranch} maxLength={100} onChange={(e) => setAcademyBranch(e.target.value)} placeholder="Type the branch / location" style={{ ...(showErr("academyBranch") ? INPUT_ERR : INPUT), marginTop: 8 }} />
+                          )}
                         </Field>
                         <Field label="Signed off by" required error={showErr("signedBy")} hint="Trainer / coordinator name">
                           <input type="text" value={signedOffBy} maxLength={100} onChange={(e) => setSignedOffBy(e.target.value)} placeholder="Full name" style={showErr("signedBy") ? INPUT_ERR : INPUT} />

@@ -198,6 +198,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
     setFilterWalkIn(false);
     setFilterOpenToGlobal(false);
     setCertFilter('mine');
+    setShowAllRoles(true); // "reset" must really show everything, including other role families
   };
 
   const toggleExpandJD = (jId) => {
@@ -760,7 +761,12 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
           ].map(([key, label]) => (
             <button
               key={key}
-              onClick={() => setCertFilter(key)}
+              onClick={() => {
+                setCertFilter(key);
+                // "All openings" also lifts the "only my role" narrowing, otherwise jobs in other
+                // role families (e.g. a Billing opening for a Coding candidate) stay hidden.
+                if (key === 'all') setShowAllRoles(true);
+              }}
               style={{
                 background: certFilter === key ? '#F5B41A' : 'rgba(255,255,255,0.1)',
                 color: certFilter === key ? '#0F1B3D' : '#FFFFFF',
@@ -1238,10 +1244,30 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
               No open jobs match your filters
             </h3>
             <p style={{ fontSize: 12.5, color: '#64748B', margin: '0 0 16px' }}>
-              {jobs.length === 0
+              {jobs.length === 0 && roleFilterOn && visibleJobs.length > 0
+                ? `No ${candidate?.stage2?.domain || 'matching'} jobs right now, but ${visibleJobs.length} opening${visibleJobs.length === 1 ? ' is' : 's are'} live in other roles.`
+                : jobs.length === 0
                 ? 'There are currently no active job postings published in the database.'
                 : 'Try adjusting your specialty, location, or reset the filters to browse all openings.'}
             </p>
+            {jobs.length === 0 && roleFilterOn && visibleJobs.length > 0 && (
+              <button
+                onClick={() => setShowAllRoles(true)}
+                style={{
+                  background: '#F5B41A',
+                  color: '#0F1B3D',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '8px 18px',
+                  fontSize: 12.5,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  marginRight: 8,
+                }}
+              >
+                Show all jobs
+              </button>
+            )}
             {jobs.length > 0 && (
               <button
                 onClick={handleResetFilters}

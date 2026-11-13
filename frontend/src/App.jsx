@@ -33,6 +33,7 @@ import CollegeLogin from "./pages/CollegeLogin.jsx";
 import CollegeRegister from "./pages/CollegeRegister.jsx";
 import CollegePortal from "./pages/CollegePortal.jsx";
 import RequireAuth from "./components/RequireAuth.jsx";
+import DashboardEntry from "./components/DashboardEntry.jsx";
 import CompanyRequireAuth from "./components/CompanyRequireAuth.jsx";
 import CollegeRequireAuth from "./components/CollegeRequireAuth.jsx";
 
@@ -134,11 +135,29 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/register" element={<Register />} />
+      {/* Separate candidate dashboards. The signup choice (Fresher / Experienced) decides
+          which one opens; /dashboard and any other /dashboard/* path forward to it. */}
+      <Route
+        path="/dashboard/fresher"
+        element={
+          <RequireAuth>
+            <CandidateWizard key="fresher" portal="fresher" />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/dashboard/experienced"
+        element={
+          <RequireAuth>
+            <CandidateWizard key="experienced" portal="experienced" />
+          </RequireAuth>
+        }
+      />
       <Route
         path="/dashboard/*"
         element={
           <RequireAuth>
-            <CandidateWizard />
+            <DashboardEntry />
           </RequireAuth>
         }
       />

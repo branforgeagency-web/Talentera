@@ -361,6 +361,8 @@ export function isStage6Optional(candidate) {
 // certifications (5 pts per cert, max 20 pts), and production charts (Option A model).
 export function isExperiencedCandidate(candidate) {
   if (!candidate) return false;
+  if (candidate.candidateType === "experienced") return true;
+  if (candidate.candidateType === "fresher") return false;
   const s1Exp = String(candidate?.stage1?.experience || candidate?.stage1?.experienceLevel || "");
   const rootExp = String(candidate?.experience || candidate?.experienceLevel || "");
   return /exp/i.test(s1Exp) || /exp/i.test(rootExp);

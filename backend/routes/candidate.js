@@ -13,10 +13,15 @@ const RetakeRequest = require("../models/RetakeRequest");
 const { requireAuth } = require("../middleware/auth");
 const { upload, handleUpload } = require("../middleware/upload");
 const { calculateVerificationScore, isExperiencedCandidate } = require("../utils/verificationScore");
+const passport = require("../utils/experiencedPassport");
+const profileUtil = require("../utils/fresherToExperienced");
 
 // Experienced candidates don't take the Stage 4 Assessment (their score comes from certifications),
 // so Stage 4 is marked as not-required/complete for them. Returns true when the document changed.
 function ensureStage4ExemptForExperienced(candidate) {
+  // Experienced candidates use the 8-stage Career Passport, where Stage 4 is a real stage - never auto-complete it.
+  return false;
+  // eslint-disable-next-line no-unreachable
   if (!candidate || !isExperiencedCandidate(candidate)) return false;
   let changed = false;
   if (!Array.isArray(candidate.completedStages)) candidate.completedStages = [];
@@ -461,6 +466,212 @@ router.post("/submit", async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Experienced Career Passport (8 stages) - see utils/experiencedPassport.js
+// ---------------------------------------------------------------------------
+function passportPayload(candidate) {
+  const px = candidate.experienced || {};
+  const st = px.stages || {};
+  const exp = passport.calcExperience(st[3]?.["current-previous-employment-entry"] || []);
+  return {
+    stages: st,
+    completed: px.completed || [],
+    published: Boolean(px.published),
+    publishedAt: px.publishedAt || null,
+    uploads: px.uploads || [],
+    experience: exp,
+    ...calculateVerificationScore(candidate.completedStages, candidate),
+  };
+}
+
+async function loadExperienced(req, res) {
+  const candidate = await Candidate.findById(req.candidateId);
+  if (!candidate) { res.status(404).json({ message: "Candidate not found." }); return null; }
+  if (!isExperiencedCandidate(candidate)) {
+    res.status(403).json({ message: "The Career Passport is for Experienced candidates." });
+    return null;
+  }
+  if (!candidate.experienced) candidate.experienced = { stages: {}, completed: [], uploads: [] };
+  return candidate;
+}
+
+// POST /api/candidate/profile/switch  { type: "fresher" | "experienced" } - make another profile of this account active
+router.post("/profile/switch", async (req, res) => {
+  try {
+    const type = String(req.body?.type || "").toLowerCase();
+    if (!["fresher", "experienced"].includes(type)) return res.status(400).json({ message: "Invalid profile type." });
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+    if (!profileUtil.typesOf(candidate).includes(type)) {
+      return res.status(400).json({ message: `You don't have a ${type} profile yet. Add it first.` });
+    }
+    profileUtil.switchProfile(candidate, type);
+    await candidate.save();
+    res.json({ candidate });
+  } catch (err) {
+    logger.error(`Profile switch error: ${err.message}`);
+    res.status(500).json({ message: "Couldn't switch profile. Please try again." });
+  }
+});
+
+// POST /api/candidate/profile/add  { type } - logged-in user adds the other profile (Experienced is pre-filled from Fresher data)
+router.post("/profile/add", async (req, res) => {
+  try {
+    const type = String(req.body?.type || "").toLowerCase();
+    if (!["fresher", "experienced"].includes(type)) return res.status(400).json({ message: "Invalid profile type." });
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+    const result = await profileUtil.addProfile(candidate, type);
+    if (!result.added) return res.status(409).json({ message: `You already have a ${type} profile.` });
+    await candidate.save();
+    res.json({ candidate, prefilledFields: result.prefilledFields });
+  } catch (err) {
+    logger.error(`Profile add error: ${err.message}`);
+    res.status(500).json({ message: "Couldn't add the profile. Please try again." });
+  }
+});
+
+// POST /api/candidate/passport/dev-fill - DEV/TEST ONLY: fills + publishes a complete demo Career Passport for the
+// logged-in candidate (an existing Fresher profile is kept as the second profile). Disabled in production.
+router.post("/passport/dev-fill", async (req, res) => {
+  if (process.env.NODE_ENV === "production") return res.status(404).json({ message: "Not found." });
+  try {
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+    const { fillExperiencedMock } = require("../utils/mockExperienced");
+    await fillExperiencedMock(candidate, candidate.email);
+    await candidate.save();
+    res.json({ ...passportPayload(candidate), candidate });
+  } catch (err) {
+    logger.error(`Passport dev-fill error: ${err.message}`);
+    res.status(500).json({ message: err.message || "Demo fill failed." });
+  }
+});
+
+// GET /api/candidate/passport
+router.get("/passport", async (req, res) => {
+  try {
+    const candidate = await loadExperienced(req, res);
+    if (!candidate) return;
+    res.json(passportPayload(candidate));
+  } catch (err) {
+    logger.error(`Passport fetch error: ${err.message}`);
+    res.status(500).json({ message: "Failed to load your Career Passport." });
+  }
+});
+
+// POST /api/candidate/passport/upload - multipart "file"; returns a server-issued file reference
+router.post("/passport/upload", upload.single("file"), handleUpload({ resourceType: "auto" }), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded." });
+    const candidate = await loadExperienced(req, res);
+    if (!candidate) return;
+    const ref = {
+      id: `up_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      url: req.file.fileUrl,
+      name: req.file.originalname,
+      size: req.file.size || 0,
+      mimetype: req.file.mimetype || "",
+      docType: String(req.body.docType || "").slice(0, 60),
+      uploadedAt: new Date().toISOString(),
+    };
+    if (!candidate.experienced) candidate.experienced = { stages: {}, completed: [], uploads: [] };
+    candidate.experienced.uploads = [...(candidate.experienced.uploads || []), ref].slice(-200);
+    candidate.markModified("experienced");
+    // Mirror into the document vault so company-side document views keep working.
+    candidate.documentVault = [
+      { id: ref.id, title: ref.docType || ref.name, docType: ref.docType || "Career Document", docUrl: ref.url, docName: ref.name,
+        fileSize: ref.size, mimetype: ref.mimetype, uploadedAt: ref.uploadedAt, status: "uploaded", verified: false },
+      ...(Array.isArray(candidate.documentVault) ? candidate.documentVault : []),
+    ];
+    candidate.markModified("documentVault");
+    await candidate.save();
+    res.json({ file: ref, uploads: candidate.experienced.uploads });
+  } catch (err) {
+    logger.error(`Passport upload error: ${err.message}`);
+    res.status(500).json({ message: "Upload failed. Please try again." });
+  }
+});
+
+// PUT /api/candidate/passport/stage/:n  { data, isDraft }
+router.put("/passport/stage/:n", async (req, res) => {
+  try {
+    const n = Number(req.params.n);
+    if (!Number.isInteger(n) || n < 1 || n > 8) return res.status(400).json({ message: "Invalid stage number." });
+    if (n === 8) return res.status(400).json({ message: "Use the Publish action for the final stage." });
+    const candidate = await loadExperienced(req, res);
+    if (!candidate) return;
+    const px = candidate.experienced;
+    const isDraft = req.body?.isDraft === true;
+
+    const data = passport.normalizeStage(n, req.body?.data, px.uploads);
+    passport.enforceIdLock(n, data, px.stages?.[n]); // before validation: a client can never claim "verified"
+    const done = new Set(px.completed || []);
+    if (!isDraft) {
+      for (let i = 1; i < n; i++) {
+        if (!done.has(i)) return res.status(400).json({ message: `Complete Stage ${i} before Stage ${n}.` });
+      }
+      // validate against the merged view so cross-stage lookups (e.g. stage 3 proof) see the fresh data
+      const errors = passport.validateStage(n, data, px.uploads);
+      if (errors.length) return res.status(400).json({ message: errors[0], errors });
+    }
+
+    passport.maskSensitive(n, data);
+    px.stages = { ...(px.stages || {}), [n]: data };
+    if (!isDraft) done.add(n);
+    px.completed = [...done].sort((a, b) => a - b);
+    // Changing an earlier stage after publishing keeps the passport live but marks it as needing re-publish review.
+    candidate.experienced = px;
+    candidate.markModified("experienced");
+    passport.syncLegacy(candidate);
+    await candidate.save();
+    res.json({ ...passportPayload(candidate), candidate });
+  } catch (err) {
+    logger.error(`Passport stage save error: ${err.message}`);
+    res.status(500).json({ message: "Failed to save this stage. Please try again." });
+  }
+});
+
+// POST /api/candidate/passport/publish  { data: stage-8 visibility & consent }
+router.post("/passport/publish", async (req, res) => {
+  try {
+    const candidate = await loadExperienced(req, res);
+    if (!candidate) return;
+    const px = candidate.experienced;
+    const done = new Set(px.completed || []);
+    for (let i = 1; i <= 7; i++) {
+      if (!done.has(i)) return res.status(400).json({ message: `Complete Stage ${i} before publishing your Career Passport.` });
+    }
+    const data = passport.normalizeStage(8, req.body?.data, px.uploads);
+    const errors = passport.validateStage(8, data, px.uploads);
+    if (errors.length) return res.status(400).json({ message: errors[0], errors });
+
+    px.stages = { ...(px.stages || {}), 8: data };
+    done.add(8);
+    px.completed = [...done].sort((a, b) => a - b);
+    px.published = true;
+    px.publishedAt = new Date().toISOString();
+    candidate.experienced = px;
+    candidate.markModified("experienced");
+    passport.syncLegacy(candidate);
+
+    candidate.isSubmitted = true;
+    candidate.submittedAt = new Date();
+    const scoring = calculateVerificationScore(candidate.completedStages, candidate);
+    if (scoring.score >= 70) {
+      candidate.isVerified = true;
+      if (!candidate.verificationReadiness) candidate.verificationReadiness = {};
+      candidate.verificationReadiness.readinessStatus = "VERIFIED";
+      candidate.verificationReadiness.verifiedAt = new Date();
+    }
+    await candidate.save();
+    res.json({ ...passportPayload(candidate), candidate });
+  } catch (err) {
+    logger.error(`Passport publish error: ${err.message}`);
+    res.status(500).json({ message: "Failed to publish your Career Passport." });
+  }
+});
+
 // PUT /api/candidate/stage/:n - save-on-advance: persists one stage's form data
 router.put("/stage/:n", async (req, res) => {
   try {
@@ -471,6 +682,10 @@ router.put("/stage/:n", async (req, res) => {
 
     const candidate = await Candidate.findById(req.candidateId);
     if (!candidate) return res.status(404).json({ message: "Candidate profile not found." });
+
+    if (isExperiencedCandidate(candidate)) {
+      return res.status(400).json({ message: "Experienced candidates complete the Career Passport. Use /api/candidate/passport." });
+    }
 
     if (stageNum > 1 && !candidate.completedStages.includes(1)) {
       return res.status(400).json({ message: "You must complete and save Stage 1 (Identity & Basics) before filling higher stages." });
@@ -530,7 +745,7 @@ router.put("/stage/:n", async (req, res) => {
         // otherwise an Experienced candidate's default trainingPath ("academy") plus an
         // always-empty academyName incorrectly blocks Stage 2 with an error for a field
         // they were never shown.
-        const isFresherCandidate = !/exp/i.test(String(candidate.stage1?.experience || ""));
+        const isFresherCandidate = !isExperiencedCandidate(candidate);
         if (isFresherCandidate && (trainingPath === "academy" || (!trainingPath && academyName))) {
           if (!academyName || String(academyName).trim().length < 2) {
             return res.status(400).json({ message: "Stage 2 incomplete: Academy / Institute name is required." });
@@ -699,6 +914,16 @@ router.put("/stage/:n", async (req, res) => {
       }
       if (!req.body.gender && (prevLocked.gender || candidate.stage1.gender)) {
         req.body.gender = prevLocked.gender || candidate.stage1.gender;
+      }
+    }
+
+    // Fresher / Experienced is chosen once at signup and decides the dashboard, so Stage 1
+    // can't contradict it. Older accounts with no signup choice adopt the Stage 1 answer.
+    if (stageNum === 1) {
+      if (candidate.candidateType) {
+        req.body.experience = candidate.candidateType === "experienced" ? "Experienced" : "Fresher";
+      } else if (req.body.experience) {
+        candidate.candidateType = /exp/i.test(String(req.body.experience)) ? "experienced" : "fresher";
       }
     }
 
@@ -2721,6 +2946,7 @@ router.post("/apply/:jobId", async (req, res) => {
       companyId,
       jobId,
       coverNote: coverNote || "",
+      profileType: profileUtil.activeType(candidate),
     });
 
     // Confirmation email - previously an applicant had no proof their
@@ -3926,7 +4152,7 @@ router.get("/jobs", async (req, res) => {
     };
 
     // ---- Real fit checks used by the Browse Jobs quick filters ----
-    const candExperienced = /exp/i.test(String(candidate?.stage1?.experience || ""));
+    const candExperienced = isExperiencedCandidate(candidate);
     const candSpecs = [
       ...(Array.isArray(candidate?.stage2?.specialties) ? candidate.stage2.specialties : []),
       candidate?.stage2?.specialty,

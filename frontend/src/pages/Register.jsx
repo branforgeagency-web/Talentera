@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { startOtpWidget } from "../utils/msg91Widget.js";
 import api from "../api/client";
+import { dashboardPathFor } from "../utils/candidateType.js";
 
 export default function Register() {
   const { register, login } = useAuth();
@@ -14,6 +15,8 @@ export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mobile, setMobile] = useState("");
+  // "fresher" | "experienced" - chosen at signup; decides which dashboard opens after login.
+  const [candidateType, setCandidateType] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -56,11 +59,14 @@ export default function Register() {
         }
         // Academy-invited students skip the OTP widget - the academy
         // already vouched for them when they were uploaded/added.
-        await register(email, password, mobile, null, inviteToken);
-        navigate("/dashboard");
+        const invited = await register(email, password, mobile, null, inviteToken);
+        navigate(dashboardPathFor(invited));
       } else if (authMode === "signup") {
         if (!mobile || !/^[6-9]\d{9}$/.test(mobile)) {
           throw new Error("Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.");
+        }
+        if (!candidateType) {
+          throw new Error("Please choose whether you are a Fresher or Experienced.");
         }
 
         const accessToken = await startOtpWidget(email, {
@@ -69,11 +75,11 @@ export default function Register() {
           submitLabel: "Verify & Create Account →",
         });
 
-        await register(email, password, mobile, accessToken);
-        navigate("/dashboard");
+        const created = await register(email, password, mobile, accessToken, undefined, candidateType);
+        navigate(dashboardPathFor(created));
       } else {
-        await login(email, password);
-        navigate("/dashboard");
+        const loggedIn = await login(email, password);
+        navigate(dashboardPathFor(loggedIn));
       }
     } catch (err) {
       setError(err.response?.data?.message || err.message || "Authentication failed. Please try again.");
@@ -381,6 +387,12 @@ export default function Register() {
                 boxSizing: "border-box"
               }}
             />
+            {authMode === "signup" && !inviteToken && (
+              <div style={{ marginTop: 6, fontSize: 11.5, color: "rgba(255,255,255,0.5)", lineHeight: 1.5 }}>
+                Already registered with this email as {candidateType === "experienced" ? "a Fresher" : "Experienced"}? Enter your
+                existing password to add this profile to the same account{candidateType === "experienced" ? " - your details will be filled in for you" : ""}.
+              </div>
+            )}
           </div>
 
           {/* MOBILE (signup only) */}
@@ -430,6 +442,61 @@ export default function Register() {
                     boxSizing: "border-box"
                   }}
                 />
+              </div>
+            </div>
+          )}
+
+          {/* FRESHER / EXPERIENCED (signup only, not for academy invite links) */}
+          {authMode === "signup" && !inviteToken && (
+            <div style={{ marginBottom: 20 }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  color: "rgba(255,255,255,0.55)",
+                  marginBottom: 6
+                }}
+              >
+                I AM A <span style={{ color: "#E5A82E" }}>*</span>
+              </label>
+              <div style={{ display: "flex", gap: 10 }}>
+                {[
+                  { key: "fresher", title: "Fresher", sub: "New to RCM / Medical Coding" },
+                  { key: "experienced", title: "Experienced", sub: "Experienced in RCM domain" }
+                ].map((opt) => {
+                  const selected = candidateType === opt.key;
+                  return (
+                    <div
+                      key={opt.key}
+                      role="radio"
+                      aria-checked={selected}
+                      tabIndex={0}
+                      onClick={() => { setCandidateType(opt.key); setError(""); }}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setCandidateType(opt.key); setError(""); } }}
+                      style={{
+                        flex: 1,
+                        padding: "12px 10px",
+                        textAlign: "center",
+                        cursor: "pointer",
+                        borderRadius: 10,
+                        border: selected ? "1.5px solid #E5A82E" : "1px solid rgba(255,255,255,0.12)",
+                        background: selected ? "rgba(229,168,46,0.14)" : "rgba(0,0,0,0.3)",
+                        transition: "all 0.2s"
+                      }}
+                    >
+                      <div style={{ fontWeight: 800, fontSize: 14, color: selected ? "#E5A82E" : "#FAF7F0" }}>
+                        {selected ? "✓ " : ""}{opt.title}
+                      </div>
+                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 3 }}>{opt.sub}</div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 6 }}>
+                This decides your dashboard and verification steps. It can't be changed later.
               </div>
             </div>
           )}

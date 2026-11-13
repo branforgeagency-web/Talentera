@@ -2,6 +2,8 @@ const mongoose = require("mongoose");
 
 const ApplicationSchema = new mongoose.Schema(
   {
+    // Which of the candidate's profiles (fresher / experienced) was active when they applied.
+    profileType: { type: String, enum: ["fresher", "experienced", ""], default: "" },
     candidateId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Candidate",

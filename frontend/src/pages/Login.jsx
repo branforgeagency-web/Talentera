@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import AuthLayout from "../components/AuthLayout.jsx";
 
 import { safeJson } from "../utils/safeJson.js";
+import { dashboardPathFor } from "../utils/candidateType.js";
 
 export default function Login() {
   const { login } = useAuth();
@@ -28,8 +29,9 @@ export default function Login() {
     setError("");
     setSubmitting(true);
     try {
-      await login(email, password);
-      navigate(redirectUrl);
+      const loggedIn = await login(email, password);
+      // Default landing is the candidate's own dashboard (fresher / experienced).
+      navigate(searchParams.get("redirect") ? redirectUrl : dashboardPathFor(loggedIn));
     } catch (err) {
       setError(err.response?.data?.message || "Login failed. Please try again.");
     } finally {

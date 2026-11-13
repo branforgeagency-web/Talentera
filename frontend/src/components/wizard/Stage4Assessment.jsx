@@ -407,6 +407,39 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
 
+  // "Continue to Stage 05". The result screen can show "Assessment completed" from local state even if
+  // the server never recorded Stage 4 as complete (the save right after the test failed or was cut off).
+  // Stage 5 then stays locked and the wizard bounces back here. So make sure Stage 4 is recorded first.
+  async function handleContinueToStage5() {
+    setShowCompletionModal(false);
+    const recorded = Array.isArray(candidate?.completedStages) && candidate.completedStages.includes(4);
+    if (recorded) {
+      if (onSaved) onSaved(null, { advance: true, nextStage: 5 });
+      return;
+    }
+    try {
+      let res;
+      try {
+        // Stage 4 already has a score on the server: this just marks it complete (no new attempt is added)
+        res = await api.put("/candidate/stage/4", {});
+      } catch (firstErr) {
+        // Nothing was saved yet: save the result that is on screen
+        if (localResult && (localResult.score !== undefined || localResult.foundationScore !== undefined)) {
+          res = await api.put("/candidate/stage/4", { ...localResult });
+        } else {
+          throw firstErr;
+        }
+      }
+      if (onSaved) onSaved(res.data, { advance: true, nextStage: 5 });
+    } catch (err) {
+      toast(
+        err.response?.data?.message || "We couldn't save your assessment result. Please check your internet connection and try again.",
+        "error",
+        { title: "Couldn't continue to Stage 5" }
+      );
+    }
+  }
+
   // Load candidate stage 4 state
   const stage4 = localResult || candidate?.stage4 || existingData || null;
   const isCompleted = Boolean(stage4 && (stage4.foundationScore !== undefined || stage4.score !== undefined || stage4.passed !== undefined));
@@ -2843,7 +2876,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               ) : (
                 <button
                   type="button"
-                  onClick={() => onSaved && onSaved(null, { advance: true, nextStage: 5 })}
+                  onClick={handleContinueToStage5}
                   style={{
                     background: "var(--gold)",
                     color: "var(--navy)",
@@ -3223,10 +3256,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               ) : (
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowCompletionModal(false);
-                    if (onSaved) onSaved(null, { advance: true, nextStage: 5 });
-                  }}
+                  onClick={handleContinueToStage5}
                   style={{
                     background: "var(--gold)",
                     color: "var(--navy)",

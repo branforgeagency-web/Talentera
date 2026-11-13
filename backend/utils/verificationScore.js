@@ -63,6 +63,8 @@ const GOLD_BADGE_THRESHOLD = 75;
 // Experienced candidates skip Stage 04 Assessment and follow the experienced points model.
 function isExperiencedCandidate(candidate) {
   if (!candidate) return false;
+  if (candidate.candidateType === "experienced") return true;
+  if (candidate.candidateType === "fresher") return false;
   const s1Exp = String(candidate.stage1?.experience || candidate.stage1?.experienceLevel || "");
   const rootExp = String(candidate.experience || candidate.experienceLevel || "");
   return /exp/i.test(s1Exp) || /exp/i.test(rootExp);
@@ -230,6 +232,11 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
   const verifiedStages = [];
   const stageScores = {};
   const experienced = isExperiencedCandidate(candidate);
+
+  // Experienced candidates are scored on their Career Passport (8 stages), not the fresher/legacy tables.
+  if (experienced && candidate && candidate.experienced && candidate.experienced.stages) {
+    return require("./experiencedPassport").calculatePassportScore(candidate);
+  }
 
   for (const stage of completedStages) {
     if (stage === 1) {

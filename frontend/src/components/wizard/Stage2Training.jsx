@@ -38,6 +38,20 @@ const DOMAINS = [
   },
 ];
 
+// What each training level means. Shown under the level pills so candidates (and institutes that
+// don't use these level names) can pick the closest one, or skip it - Training Level is optional.
+const TRAINING_LEVEL_GUIDE = [
+  { key: "Non-Trained", label: "Non-Trained", text: "No formal training yet (fresh graduate, career changer, or self-learning only). Selecting this skips the \"How did you train?\" question." },
+  { key: "Basic", label: "Basic", text: "Foundation level: medical terminology, anatomy basics and the fundamentals of the domain. Can work on simple, guided tasks." },
+  { key: "Intermediate", label: "Intermediate", text: "Hands-on level: practiced real or sample work in the domain and can handle routine tasks with limited guidance." },
+  { key: "Advanced", label: "Advanced", text: "Handles complex and specialty work independently with high accuracy, and has finished full course-level training." },
+  { key: "Auditor", label: "Auditor / QA", text: "Reviews other people's work for accuracy and compliance, gives feedback, and handles quality audits." },
+];
+const trainingLevelGuideFor = (level) => {
+  const l = String(level || "");
+  return TRAINING_LEVEL_GUIDE.find((g) => l === g.key || l.startsWith(g.key)) || null;
+};
+
 const DOMAINS_WITHOUT_SPECIALTIES = ["Accounts Receivable", "Eligibility & Verification"];
 
 const DOMAIN_TRAINING_LEVELS = {
@@ -763,10 +777,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
       missing.push("Primary Domain (Section 1.1)");
       errs.domain = "Please select your primary domain";
     }
-    if (isFresherCandidate && !trainingLevel && !levelOtherSelected && trainingPath !== "non_trained") {
-      missing.push("Training Level (Section 1.2)");
-      errs.trainingLevel = "Please select your training level";
-    } else if (isFresherCandidate && levelOtherSelected && !levelOtherText.trim()) {
+    if (isFresherCandidate && levelOtherSelected && !levelOtherText.trim()) {
       missing.push("Training Level - specify under Others (Section 1.2)");
       errs.levelOther = "Please type your training level";
     }
@@ -1894,10 +1905,10 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
             {isFresherCandidate && (
             <div className={`s2-field ${formErrors.trainingLevel ? "has-error" : ""}`}>
               <label>
-                1.2 · Training Level <span className="req">*</span>
+                1.2 · Training Level <span className="s2-helper" style={{ fontWeight: 500 }}>(optional)</span>
               </label>
               <div className="s2-helper" style={{ marginBottom: 8 }}>
-                Different levels signal different depth to companies{domain ? ` for ${domain}` : ""}.
+                Different levels signal different depth to companies{domain ? ` for ${domain}` : ""}. Not sure, or your institute doesn't use levels? You can skip this.
               </div>
               <div className="s2-level-pill-group" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {currentTrainingLevels.map((lvl) => (
@@ -1907,7 +1918,16 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                     onClick={() => {
                       if (formErrors.trainingLevel) setFormErrors((prev) => ({ ...prev, trainingLevel: "" }));
                       setLevelOtherSelected(false);
-                      setTrainingLevel(lvl);
+                      // Clicking the selected level again clears it (the level is optional)
+                      const next = trainingLevel === lvl ? "" : lvl;
+                      setTrainingLevel(next);
+                      if (next === "Non-Trained") {
+                        // No formal training: skip "How did you train?" and use the Direct Entry path
+                        setTrainingPath("non_trained");
+                        if (practicedCharts === null) setPracticedCharts(false);
+                      } else if (trainingPath === "non_trained") {
+                        setTrainingPath("academy");
+                      }
                     }}
                   >
                     {lvl}
@@ -1927,6 +1947,19 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
               {formErrors.trainingLevel && (
                 <div className="field-error-msg">{formErrors.trainingLevel}</div>
               )}
+              {!levelOtherSelected && trainingLevelGuideFor(trainingLevel) && (
+                <div className="s2-helper" style={{ marginTop: 8, padding: "8px 12px", background: "#FFF9E6", border: "1px solid #F5E3A1", borderRadius: 8 }}>
+                  <strong>{trainingLevelGuideFor(trainingLevel).label}:</strong> {trainingLevelGuideFor(trainingLevel).text}
+                </div>
+              )}
+              <details style={{ marginTop: 8 }}>
+                <summary className="s2-helper" style={{ cursor: "pointer", fontWeight: 700 }}>What do these levels mean?</summary>
+                <ul className="s2-helper" style={{ margin: "6px 0 0", paddingLeft: 18, lineHeight: 1.6 }}>
+                  {TRAINING_LEVEL_GUIDE.map((g) => (
+                    <li key={g.key}><strong>{g.label}</strong> - {g.text}</li>
+                  ))}
+                </ul>
+              </details>
               {levelOtherSelected && (
                 <div style={{ marginTop: 10, maxWidth: 420 }} className={`s2-field ${formErrors.levelOther ? "has-error" : ""}`}>
                   <input
@@ -2022,7 +2055,8 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
 
           {isFresherCandidate ? (
             <>
-          {/* SECTION 2 · PATH CHOOSER */}
+          {/* SECTION 2 · PATH CHOOSER - not asked when the candidate picked the Non-Trained level */}
+          {!(trainingLevel === "Non-Trained" && !levelOtherSelected) && (
           <div className="s2-section">
             <div className="s2-section-header">
               <div className="s2-section-num">2</div>
@@ -2053,11 +2087,12 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
               </div>
             </div>
           </div>
+          )}
 
           {/* SECTION 3 · PATH DETAILS */}
           <div className="s2-section">
             <div className="s2-section-header">
-              <div className="s2-section-num">3</div>
+              <div className="s2-section-num">{trainingLevel === "Non-Trained" && !levelOtherSelected ? 2 : 3}</div>
               <div className="s2-section-title">
                 {trainingPath === "non_trained"
                   ? "Direct Entry & Trainee Profile"
