@@ -1787,24 +1787,6 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
           </button>
         ))}
         {onBackToDashboard && <button type="button" className="xp-back" onClick={onBackToDashboard}>← Back to My Dashboard</button>}
-        {import.meta.env.DEV && (
-          <button
-            type="button"
-            className="xp-back"
-            title="Development only: fills and publishes all 8 stages with demo data"
-            onClick={async () => {
-              if (!window.confirm("DEV ONLY: replace this passport with demo data for all 8 stages?")) return;
-              try {
-                await api.post("/candidate/passport/dev-fill");
-                window.location.reload();
-              } catch (err) {
-                window.alert(err.response?.data?.message || "Demo fill failed.");
-              }
-            }}
-          >
-            ⚡ Fill demo data (dev)
-          </button>
-        )}
       </aside>
 
       <main className="xp-main" ref={topRef}>

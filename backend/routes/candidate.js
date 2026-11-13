@@ -531,23 +531,6 @@ router.post("/profile/add", async (req, res) => {
   }
 });
 
-// POST /api/candidate/passport/dev-fill - DEV/TEST ONLY: fills + publishes a complete demo Career Passport for the
-// logged-in candidate (an existing Fresher profile is kept as the second profile). Disabled in production.
-router.post("/passport/dev-fill", async (req, res) => {
-  if (process.env.NODE_ENV === "production") return res.status(404).json({ message: "Not found." });
-  try {
-    const candidate = await Candidate.findById(req.candidateId);
-    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
-    const { fillExperiencedMock } = require("../utils/mockExperienced");
-    await fillExperiencedMock(candidate, candidate.email);
-    await candidate.save();
-    res.json({ ...passportPayload(candidate), candidate });
-  } catch (err) {
-    logger.error(`Passport dev-fill error: ${err.message}`);
-    res.status(500).json({ message: err.message || "Demo fill failed." });
-  }
-});
-
 // GET /api/candidate/passport
 router.get("/passport", async (req, res) => {
   try {
