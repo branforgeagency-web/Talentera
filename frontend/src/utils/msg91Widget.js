@@ -20,6 +20,7 @@ export async function startOtpWidget(identifier = "", options = {}) {
   }
 
   let initialCode = "";
+  let sendError = "";
   try {
     const sendRes = await fetch("/api/otp/send", {
       method: "POST",
@@ -27,11 +28,15 @@ export async function startOtpWidget(identifier = "", options = {}) {
       body: JSON.stringify({ email }),
     });
     const sendData = await safeJson(sendRes);
-    if (sendData?.fallback && sendData?.otpCode) {
-      initialCode = sendData.otpCode;
+    if (sendData?.devOtp || sendData?.otpCode) {
+      initialCode = sendData.devOtp || sendData.otpCode;
+    }
+    if (!sendRes.ok) {
+      sendError = sendData?.message || "Failed to send verification email.";
     }
   } catch (err) {
     console.warn("OTP send trigger warning:", err);
+    sendError = err.message || "Network error connecting to OTP service.";
   }
 
   return new Promise((resolve, reject) => {
@@ -40,6 +45,7 @@ export async function startOtpWidget(identifier = "", options = {}) {
       title: options.title || "Verify Email OTP",
       submitLabel: options.submitLabel || "Verify & Continue →",
       initialCode,
+      initialError: sendError,
       resolve,
       reject,
     });
@@ -52,6 +58,7 @@ function renderInlineOtpModal(config) {
     title,
     submitLabel,
     initialCode = "",
+    initialError = "",
     resolve,
     reject,
   } = config;
@@ -119,10 +126,15 @@ function renderInlineOtpModal(config) {
       <h3 style="font-size: 22px; font-weight: 800; margin: 0 0 6px 0; color: #FAF7F0;">
         ${title}
       </h3>
-      <p style="font-size: 13px; color: rgba(255, 255, 255, 0.65); margin: 0 0 20px 0; line-height: 1.5;">
+      <p style="font-size: 13px; color: rgba(255, 255, 255, 0.65); margin: 0 0 10px 0; line-height: 1.5;">
         A 6-digit verification code was sent via Email to <br/>
         <strong style="color: #E5A82E;">${email}</strong>
       </p>
+
+      <div style="background: rgba(229,168,46,0.1); border: 1px dashed rgba(229,168,46,0.35); border-radius: 8px; padding: 7px 12px; font-size: 11.5px; color: #E5A82E; margin: 0 0 16px 0; line-height: 1.4; text-align: center;">
+        ✉️ Please check your <strong>Inbox</strong> and <strong>Spam / Junk</strong> folder.
+        ${initialCode ? `<div style="margin-top: 3px; font-size: 11px; opacity: 0.95;">(Development OTP: <strong>${initialCode}</strong>)</div>` : ""}
+      </div>
 
       <div id="otp-error-banner" style="display: none; background: rgba(248,113,113,0.15); border: 1px solid rgba(248,113,113,0.4); border-radius: 8px; padding: 10px; font-size: 12.5px; color: #F87171; margin-bottom: 16px;"></div>
 
@@ -274,9 +286,16 @@ function renderInlineOtpModal(config) {
         body: JSON.stringify({ email }),
       });
       const sendData = await safeJson(sendRes);
-      if (sendData?.fallback && sendData?.otpCode) {
+      if (!sendRes.ok) {
+        showError(sendData?.message || "Failed to resend OTP. Please wait a moment.");
+        resendBtn.innerText = "Resend Email OTP";
+        resendBtn.disabled = false;
+        return;
+      }
+      const code = sendData?.devOtp || sendData?.otpCode;
+      if (code) {
         inputs.forEach((inp) => (inp.value = ""));
-        sendData.otpCode.split("").forEach((c, i) => {
+        code.split("").forEach((c, i) => {
           if (inputs[i]) inputs[i].value = c;
         });
       }
@@ -291,6 +310,10 @@ function renderInlineOtpModal(config) {
       showError("Failed to resend OTP. Please try again.");
     }
   });
+
+  if (initialError) {
+    showError(initialError);
+  }
 
   submitBtn.addEventListener("click", handleFinish);
   cancelBtn.addEventListener("click", () => {

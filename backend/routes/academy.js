@@ -481,7 +481,7 @@ async function claimNameMatchedCandidates(academy) {
   );
 }
 
-function buildAcademyCandidateFilter(academyId, academyName, invites = [], branch = null) {
+function buildAcademyCandidateFilter(academyId, academyName, invites = [], branch = null, branchBatches = []) {
   const invitedEmails = invites.map((inv) => (inv.email || "").toLowerCase().trim()).filter(Boolean);
   const candidateIds = invites.map((inv) => inv.candidateId).filter(Boolean);
 
@@ -505,17 +505,39 @@ function buildAcademyCandidateFilter(academyId, academyName, invites = [], branc
     ],
   };
 
-  if (branch && typeof branch === "string" && branch.trim()) {
-    const cleanB = branch.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    filter.$and.push({
-      $or: [
-        { "stage2.branch": new RegExp(cleanB, "i") },
-        { "stage1.city": new RegExp(cleanB, "i") },
-      ],
-    });
+  if (branch && typeof branch === "string" && branch.trim() && branch.toLowerCase() !== "all") {
+    const cleanB = branch.trim();
+    const cityWord = cleanB.split(/\s+|-/)[0]; // e.g. "Chennai" from "Chennai Main Campus"
+    const safeRegex = (str) => new RegExp(str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+
+    const branchOr = [
+      { "stage2.branch": safeRegex(cleanB) },
+      { "stage2.branch": safeRegex(cityWord) },
+      { "stage1.city": safeRegex(cityWord) },
+    ];
+    if (Array.isArray(branchBatches) && branchBatches.length > 0) {
+      branchOr.push({ "stage2.batch": { $in: branchBatches } });
+    }
+    filter.$and.push({ $or: branchOr });
   }
 
   return filter;
+}
+
+async function getTargetBranchBatchCodes(academyId, targetBranch) {
+  if (!targetBranch || targetBranch.toLowerCase() === "all") return [];
+  const cleanBranch = targetBranch.toLowerCase().trim();
+  const cityWord = cleanBranch.split(/\s+|-/)[0];
+  const AcademyBatch = require("../models/AcademyBatch");
+  const dbBatches = await AcademyBatch.find({ academyId }).lean();
+  return dbBatches
+    .filter((b) => {
+      const bBranch = (b.branch || "").toLowerCase().trim();
+      const bCode = (b.code || "").toLowerCase().trim();
+      return bBranch.includes(cleanBranch) || cleanBranch.includes(bBranch) || bBranch.includes(cityWord) || bCode.includes(cityWord);
+    })
+    .map((b) => b.code)
+    .filter(Boolean);
 }
 
 // Ownership guard: an academy may only open or act on its OWN candidates (linked by
@@ -1123,7 +1145,21 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
     await claimNameMatchedCandidates(academy);
     await repairFakeRegistrations(req.academyId);
     const targetBranch = req.branchName || req.query.branch || null;
-    const filter = buildAcademyCandidateFilter(req.academyId, academy.name, invites, targetBranch);
+
+    // Batches - scoped to target branch if active
+    let dbBatches = await AcademyBatch.find({ academyId: req.academyId }).lean();
+    if (targetBranch && targetBranch.toLowerCase() !== "all") {
+      const cleanBranch = targetBranch.toLowerCase().trim();
+      const cityWord = cleanBranch.split(/\s+|-/)[0];
+      dbBatches = dbBatches.filter((b) => {
+        const bBranch = (b.branch || "").toLowerCase().trim();
+        const bCode = (b.code || "").toLowerCase().trim();
+        return bBranch.includes(cleanBranch) || cleanBranch.includes(bBranch) || bBranch.includes(cityWord) || bCode.includes(cityWord);
+      });
+    }
+    const branchBatchCodes = dbBatches.map((b) => b.code).filter(Boolean);
+
+    const filter = buildAcademyCandidateFilter(req.academyId, academy.name, invites, targetBranch, branchBatchCodes);
     const candidatesList = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
 
     const hiringMap = await require("../utils/hiringLinks").hiringSummary(candidatesList.map((c) => c._id));
@@ -1212,16 +1248,6 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
       };
     });
 
-    // Batches
-    let dbBatches = await AcademyBatch.find({ academyId: req.academyId }).lean();
-    if (targetBranch) {
-      const cleanBranch = targetBranch.toLowerCase().trim();
-      dbBatches = dbBatches.filter((b) => {
-        const bBranch = (b.branch || "").toLowerCase().trim();
-        const bCode = (b.code || "").toLowerCase().trim();
-        return bBranch.includes(cleanBranch) || cleanBranch.includes(bBranch) || bCode.includes(cleanBranch);
-      });
-    }
     let batches = dbBatches.map((b) => {
       const realEnrolledCount = formattedStudents.filter(
         (s) => s.month === b.code || (s.month && (s.month.includes(b.code) || b.code.includes(s.month)))
@@ -1232,11 +1258,20 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
       };
     });
 
+    // Placements - scoped to target branch if active
+    let placements = academy.placements || [];
+    if (targetBranch && targetBranch.toLowerCase() !== "all") {
+      const cleanBranch = targetBranch.toLowerCase().trim();
+      const cityWord = cleanBranch.split(/\s+|-/)[0];
+      placements = placements.filter((p) => {
+        const pCity = (p.city || "").toLowerCase().trim();
+        return pCity.includes(cleanBranch) || cleanBranch.includes(pCity) || pCity.includes(cityWord);
+      });
+    }
+
     // Real KPI calculations - Talentera Score average (Stages 1-6 weighted, out of
     // 100), counting every candidate with at least one graded stage done, not just
     // those who scored on the Assessment specifically.
-    // Students who have not registered on Talentera yet have no real score or progress, so they are
-    // left out of the averages (they are still counted in the total student numbers).
     const registeredStudents = formattedStudents.filter((s) => !s.registrationPending);
     const scoredStudents = registeredStudents.filter((s) => s.talenteraScore > 0);
     const avgScore = scoredStudents.length > 0
@@ -1253,22 +1288,30 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
     const stuckStudents = formattedStudents.filter((s) => s.status === "verifying" || s.completion === "0%" || s.stageBreakdown.doneCount < 5);
     const pendingApprovals = formattedStudents.filter((s) => s.stages.some((st) => st.needsApproval));
 
-    const recentActivity = await AcademyActivityEvent.find({ academyId: req.academyId })
+    const candidateIds = candidatesList.map((c) => c._id);
+    let activityQuery = { academyId: req.academyId };
+    if (targetBranch && targetBranch.toLowerCase() !== "all") {
+      activityQuery.$or = [
+        { candidateId: { $in: candidateIds } },
+        ...(branchBatchCodes.length ? [{ batchCode: { $in: branchBatchCodes } }] : []),
+      ];
+    }
+    const recentActivity = await AcademyActivityEvent.find(activityQuery)
       .sort({ createdAt: -1 })
       .limit(15)
       .lean();
 
-    const invitesCount = await StudentInvite.countDocuments({ academyId: req.academyId });
-    const signedUpCount = await StudentInvite.countDocuments({ academyId: req.academyId, status: "signed_up" });
+    let inviteQuery = { academyId: req.academyId };
+    if (targetBranch && targetBranch.toLowerCase() !== "all") {
+      inviteQuery.$or = [
+        ...(branchBatchCodes.length ? [{ batchCode: { $in: branchBatchCodes } }] : []),
+        ...(candidateIds.length ? [{ candidateId: { $in: candidateIds } }] : []),
+      ];
+    }
+    const invitesCount = await StudentInvite.countDocuments(inviteQuery);
+    const signedUpCount = await StudentInvite.countDocuments({ ...inviteQuery, status: "signed_up" });
 
-    // Real "reached company interview stage" count - candidates who have at
-    // least one Application that made it to interviewing or hired. This is
-    // cumulative on purpose (a candidate who was interviewed and then
-    // placed still counts here, same as "verifiedStudents" above still
-    // counts placed students) so the Analytics funnel's "Company Interviews"
-    // step reflects actual pipeline activity and updates the moment a
-    // candidate's application status changes - including once they're hired.
-    const candidateIds = candidatesList.map((c) => c._id);
+    // Real "reached company interview stage" count for this branch
     const interviewStageApps = candidateIds.length
       ? await Application.find({
           candidateId: { $in: candidateIds },
@@ -1284,7 +1327,7 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
         activeBatches: batches.length,
         avgScore,
         profileComplete: avgProfileComplete,
-        placementsMonth: (academy.placements || []).length,
+        placementsMonth: placements.length,
         verifiedStudents: formattedStudents.filter((s) => s.status === "verified" || s.status === "placed").length,
         placedStudents: placedStudentsCount,
         placementRate,
@@ -1311,17 +1354,19 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
         };
       }),
       questions: academy.questions || [],
-      placements: academy.placements || [],
+      placements,
       recentActivity,
       isBranchCoordinator: Boolean(req.isBranchCoordinator),
       coordinator: req.coordinator || null,
       activeBranch: targetBranch || null,
-      availableBranches: [
-        ...new Set([
-          ...(Array.isArray(academy.branches) ? academy.branches.map((b) => (typeof b === "string" ? b : b?.name)) : []),
-          ...(Array.isArray(academy.kycData?.branches) ? academy.kycData.branches.map((b) => b.name) : []),
-        ].filter(Boolean)),
-      ],
+      availableBranches: req.isBranchCoordinator
+        ? [req.branchName]
+        : [
+            ...new Set([
+              ...(Array.isArray(academy.branches) ? academy.branches.map((b) => (typeof b === "string" ? b : b?.name)) : []),
+              ...(Array.isArray(academy.kycData?.branches) ? academy.kycData.branches.map((b) => b.name) : []),
+            ].filter(Boolean)),
+          ],
     });
   } catch (err) {
     logger.error(`Academy dashboard error: ${err.message}`);
@@ -3343,11 +3388,13 @@ router.get("/company-data", requireAcademyAuth, async (req, res) => {
 // GET /api/academy/live-profiles
 router.get("/live-profiles", requireAcademyAuth, async (req, res) => {
   try {
+    const targetBranch = req.branchName || req.query.branch || null;
     const academy = await Academy.findById(req.academyId).lean();
     const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
     await syncAcademyUploadedStage2(invites);
     await claimNameMatchedCandidates(academy);
-    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+    const branchBatchCodes = await getTargetBranchBatchCodes(req.academyId, targetBranch);
+    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites, targetBranch, branchBatchCodes);
 
     const candidates = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
 
@@ -3475,10 +3522,12 @@ router.post("/placements/dispute", requireAcademyAuth, async (req, res) => {
 // GET /api/academy/stuck-students
 router.get("/stuck-students", requireAcademyAuth, async (req, res) => {
   try {
+    const targetBranch = req.branchName || req.query.branch || null;
     const daysIdle = Number(req.query.days_idle) || 5;
     const academy = await Academy.findById(req.academyId).lean();
     const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
-    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+    const branchBatchCodes = await getTargetBranchBatchCodes(req.academyId, targetBranch);
+    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites, targetBranch, branchBatchCodes);
 
     const candidates = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
 
@@ -3667,11 +3716,13 @@ router.post("/students/bulk-nudge", requireAcademyAuth, async (req, res) => {
 // GET /api/academy/approvals
 router.get("/approvals", requireAcademyAuth, async (req, res) => {
   try {
+    const targetBranch = req.branchName || req.query.branch || null;
     const academy = await Academy.findById(req.academyId).lean();
     const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
     await syncAcademyUploadedStage2(invites);
     await claimNameMatchedCandidates(academy);
-    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+    const branchBatchCodes = await getTargetBranchBatchCodes(req.academyId, targetBranch);
+    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites, targetBranch, branchBatchCodes);
 
     const candidates = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
 
@@ -4029,11 +4080,13 @@ router.get("/students/:id/timeline", requireAcademyAuth, async (req, res) => {
 // GET /api/academy/interviews/kanban
 router.get("/interviews/kanban", requireAcademyAuth, async (req, res) => {
   try {
+    const targetBranch = req.branchName || req.query.branch || null;
     const { batchCode, company, search } = req.query;
 
     const academy = await Academy.findById(req.academyId).lean();
     const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
-    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+    const branchBatchCodes = await getTargetBranchBatchCodes(req.academyId, targetBranch);
+    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites, targetBranch, branchBatchCodes);
 
     const candidates = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
 
@@ -4175,11 +4228,13 @@ const HEATMAP_COLUMNS = {
 
 router.get("/interviews/heatmap", requireAcademyAuth, async (req, res) => {
   try {
+    const targetBranch = req.branchName || req.query.branch || null;
     const { batchCode } = req.query;
 
     const academy = await Academy.findById(req.academyId).lean();
     const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
-    const baseFilter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+    const branchBatchCodes = await getTargetBranchBatchCodes(req.academyId, targetBranch);
+    const baseFilter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites, targetBranch, branchBatchCodes);
 
     const isAllBatches = !batchCode || batchCode === "ALL" || batchCode === "all" || batchCode === "All";
     const candidateQuery = isAllBatches ? baseFilter : { $and: [baseFilter, { "stage2.batch": batchCode }] };
@@ -4328,7 +4383,19 @@ router.post("/activity/simulate", requireAcademyAuth, async (req, res) => {
 // GET /api/academy/placements/confirmations
 router.get("/placements/confirmations", requireAcademyAuth, async (req, res) => {
   try {
-    const confirmations = await PlacementConfirmation.find({ academyId: req.academyId }).sort({ createdAt: -1 }).lean();
+    const targetBranch = req.branchName || req.query.branch || null;
+    let query = { academyId: req.academyId };
+    if (targetBranch && targetBranch.toLowerCase() !== "all") {
+      const cleanB = targetBranch.trim();
+      const cityWord = cleanB.split(/\s+|-/)[0];
+      const safeRegex = (str) => new RegExp(str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      query.$or = [
+        { city: safeRegex(cityWord) },
+        { batchCode: safeRegex(cleanB) },
+        { batchCode: safeRegex(cityWord) }
+      ];
+    }
+    const confirmations = await PlacementConfirmation.find(query).sort({ createdAt: -1 }).lean();
     res.json({ confirmations });
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch placement confirmations." });
@@ -4340,9 +4407,11 @@ router.get("/placements/confirmations", requireAcademyAuth, async (req, res) => 
 // offer accepted / joining date, joined, offer denied (declined) and offer on hold.
 router.get("/placements/offer-tracker", requireAcademyAuth, async (req, res) => {
   try {
+    const targetBranch = req.branchName || req.query.branch || null;
     const academy = await Academy.findById(req.academyId).lean();
     const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
-    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+    const branchBatchCodes = await getTargetBranchBatchCodes(req.academyId, targetBranch);
+    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites, targetBranch, branchBatchCodes);
     const candidates = await Candidate.find(filter).select("stage1 stage2 email").limit(DASHBOARD_FETCH_CAP).lean();
     if (candidates.length === 0) return res.json({ rows: [], summary: {} });
     const byId = new Map(candidates.map((c) => [String(c._id), c]));
@@ -5911,9 +5980,17 @@ router.get("/branches", requireAcademyAuth, async (req, res) => {
       })
     );
 
+    const filteredBranches = req.isBranchCoordinator
+      ? branchesWithDetails.filter((b) => {
+          const cleanB = (b.name || "").toLowerCase().trim();
+          const cleanReq = (req.branchName || "").toLowerCase().trim();
+          return cleanB.includes(cleanReq) || cleanReq.includes(cleanB);
+        })
+      : branchesWithDetails;
+
     res.json({
-      branches: branchesWithDetails,
-      totalBranches: branchesWithDetails.length,
+      branches: filteredBranches,
+      totalBranches: filteredBranches.length,
       isBranchCoordinator: Boolean(req.isBranchCoordinator),
       activeBranch: req.branchName || null,
     });
