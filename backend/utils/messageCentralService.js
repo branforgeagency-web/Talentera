@@ -27,6 +27,9 @@ class MessageCentralService {
       customer_id: String(this.customerId),
       "Content-Type": "application/json",
       accept: "application/json",
+      // Message Central now requires these two headers on every eKYC call (the 422 "Field required" error).
+      purpose: (process.env.MESSAGECENTRAL_PURPOSE || "Identity verification for candidate profile on Talentera").trim(),
+      company_name: (process.env.MESSAGECENTRAL_COMPANY_NAME || "Talentera").trim(),
       ...extraHeaders,
     };
   }
@@ -143,7 +146,11 @@ class MessageCentralService {
           `(Raw: ${JSON.stringify(errData)})`
         );
       }
-      throw new Error(errData?.error_message || errData?.message || err.message || "Failed to initiate Aadhaar verification session.");
+      const raw = errData && typeof errData === "object" ? JSON.stringify(errData).slice(0, 300) : String(errData || "").slice(0, 300);
+      throw new Error(
+        errData?.error_message || errData?.message ||
+        `Message Central rejected the request (HTTP ${statusCode}). Redirect URL sent: ${safeRedirect}. ${raw ? `Details: ${raw}` : "Check that this redirect URL is allowed in your Message Central account."}`
+      );
     }
   }
 

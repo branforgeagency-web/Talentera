@@ -470,6 +470,11 @@ router.post("/submit", async (req, res) => {
 // ---------------------------------------------------------------------------
 // Experienced Career Passport (8 stages) - see utils/experiencedPassport.js
 // ---------------------------------------------------------------------------
+// With test mode on, every Career Passport stage saves and moves on without the required-field
+// checks (stages are still completed in order). Turn OFF (PASSPORT_TEST_MODE=false) before real users.
+// ON by default now (no setting needed on the deployed site); set PASSPORT_TEST_MODE=false to bring the checks back.
+const passportTestMode = () => String(process.env.PASSPORT_TEST_MODE || "true").toLowerCase() !== "false";
+
 function passportPayload(candidate) {
   const px = candidate.experienced || {};
   const st = px.stages || {};
@@ -478,6 +483,7 @@ function passportPayload(candidate) {
     stages: st,
     completed: px.completed || [],
     published: Boolean(px.published),
+    testMode: passportTestMode(),
     publishedAt: px.publishedAt || null,
     uploads: px.uploads || [],
     experience: exp,
@@ -596,7 +602,7 @@ router.put("/passport/stage/:n", async (req, res) => {
         if (!done.has(i)) return res.status(400).json({ message: `Complete Stage ${i} before Stage ${n}.` });
       }
       // validate against the merged view so cross-stage lookups (e.g. stage 3 proof) see the fresh data
-      const errors = passport.validateStage(n, data, px.uploads);
+      const errors = passportTestMode() ? [] : passport.validateStage(n, data, px.uploads);
       if (errors.length) return res.status(400).json({ message: errors[0], errors });
     }
 
@@ -627,7 +633,7 @@ router.post("/passport/publish", async (req, res) => {
       if (!done.has(i)) return res.status(400).json({ message: `Complete Stage ${i} before publishing your Career Passport.` });
     }
     const data = passport.normalizeStage(8, req.body?.data, px.uploads);
-    const errors = passport.validateStage(8, data, px.uploads);
+    const errors = passportTestMode() ? [] : passport.validateStage(8, data, px.uploads);
     if (errors.length) return res.status(400).json({ message: errors[0], errors });
 
     px.stages = { ...(px.stages || {}), 8: data };
