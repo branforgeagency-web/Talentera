@@ -114,4 +114,14 @@ const NEW_DEFAULT_INTERVIEW_QUESTIONS = [
     ["Medicare Secondary Payer", "Primary vs Secondary", "Wrong Payer Billing"]),
 ];
 
-module.exports = { NEW_DEFAULT_INTERVIEW_QUESTIONS };
+// Shared 95-question billing / AR-calling / eligibility interview bank (technical + live-call + HR questions).
+// The same set is added to Medical Billing, Accounts Receivable and Eligibility & Verification.
+const BILLING_AR_EV_BANK = require("./billingArEvInterviewBank.json");
+const BILLING_AR_EV_DOMAINS = [MB, AR, EV];
+for (const domain of BILLING_AR_EV_DOMAINS) {
+  for (const item of BILLING_AR_EV_BANK) {
+    NEW_DEFAULT_INTERVIEW_QUESTIONS.push(Q(domain, item.text, item.correctAnswer, item.keywords));
+  }
+}
+
+module.exports = { NEW_DEFAULT_INTERVIEW_QUESTIONS, BILLING_AR_EV_BANK, BILLING_AR_EV_DOMAINS };

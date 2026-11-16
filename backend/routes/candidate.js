@@ -1567,6 +1567,30 @@ router.post("/video-platform/sync", async (req, res) => {
 
 // GET /api/candidate/assessment-questions?domain=...
 // Fetches the 5 syllabus sections and 25 questions tailored to candidate's domain
+// Small seeded PRNG + shuffle so a candidate's question paper is stable for one attempt.
+function seededRandom(seedStr) {
+  let h = 1779033703 ^ String(seedStr).length;
+  for (let i = 0; i < seedStr.length; i++) {
+    h = Math.imul(h ^ seedStr.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  let a = h >>> 0;
+  return () => {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function seededShuffle(list, rand) {
+  const arr = list.slice();
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 router.get("/assessment-questions", async (req, res) => {
   try {
     let domain = req.query.domain;
@@ -1642,7 +1666,12 @@ router.get("/assessment-questions", async (req, res) => {
       const onlyDefaults = sections.filter((sec) => defaultKeys.has(sec.key));
       if (onlyDefaults.length >= 3) sections = onlyDefaults;
     }
-    sections = sections.slice(0, 5).map((sec) => ({ ...sec, questions: sec.questions.slice(0, 5) }));
+    // Each section holds a larger bank (e.g. 25). Show 5 per section, picked with a seed made from the candidate
+    // and their attempt number: a refresh mid-test keeps the same paper, a retake gets a different one.
+    const seedCand = await Candidate.findById(req.candidateId).select("stage4").lean();
+    const attemptNo = Array.isArray(seedCand?.stage4?.attempts) ? seedCand.stage4.attempts.length : 0;
+    const rand = seededRandom(`${req.candidateId}:${attemptNo}`);
+    sections = sections.slice(0, 5).map((sec) => ({ ...sec, questions: seededShuffle(sec.questions, rand).slice(0, 5) }));
 
     res.json({
       success: true,

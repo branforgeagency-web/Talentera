@@ -1,6 +1,6 @@
 const InterviewQuestion = require("../models/InterviewQuestion");
 const { generateFinalReport, DOMAIN_INTERVIEW_BANKS } = require("./claudeInterview");
-const { NEW_DEFAULT_INTERVIEW_QUESTIONS } = require("../data/defaultInterviewQuestions");
+const { NEW_DEFAULT_INTERVIEW_QUESTIONS, BILLING_AR_EV_BANK, BILLING_AR_EV_DOMAINS } = require("../data/defaultInterviewQuestions");
 
 // ---------------------------------------------------------------------------
 // Shared AI Mock Interview session helpers - build/finalize a
@@ -114,6 +114,23 @@ async function ensureDefaultInterviewBank(force = false) {
       if (existingCount > 0) continue;
       const toInsert = seed.filter((q) => q.domain === domain);
       if (toInsert.length) await InterviewQuestion.insertMany(toInsert, { ordered: false });
+    }
+    // Domains staff already manage still receive the shared billing / AR / eligibility bank - insert only the
+    // questions that are missing (matched by text), never touching or removing what staff already have.
+    for (const domain of BILLING_AR_EV_DOMAINS) {
+      const aliases = getDomainQueryAliases(domain);
+      const have = await InterviewQuestion.find({ domain: { $in: aliases } }).select("text").lean();
+      const haveNorms = new Set(have.map((d) => normalizeQText(d.text)));
+      const missing = BILLING_AR_EV_BANK.filter((q) => !haveNorms.has(normalizeQText(q.text))).map((q, i) => ({
+        domain,
+        text: q.text,
+        correctAnswer: q.correctAnswer,
+        keywords: q.keywords,
+        mode: "both",
+        active: true,
+        order: 1000 + i,
+      }));
+      if (missing.length) await InterviewQuestion.insertMany(missing, { ordered: false });
     }
     interviewBankEnsured = true;
   } catch (e) {
