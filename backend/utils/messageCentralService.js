@@ -224,7 +224,9 @@ class MessageCentralService {
       const respData = response.data || {};
       if (respData.response_code && respData.response_code !== 200) {
         if (respData.response_code === 202 || respData.error_data?.code === "validation_pending") {
-          throw new Error("DigiLocker verification is still in progress. Please enter your OTP on the official UIDAI page and try again.");
+          const providerDetail = JSON.stringify({ code: respData.response_code, error: respData.error_data || respData.error_message || respData.message || null }).slice(0, 200);
+          logger.warn(`[MESSAGECENTRAL] get-document still pending (ref ${referenceId}, req ${digilockerRequestId}): ${providerDetail}`);
+          throw new Error(`DigiLocker verification is still in progress. Please enter your OTP on the official UIDAI page and try again. (Provider reply: ${providerDetail})`);
         }
         const errMsg = respData.error_message || respData.message || "Failed to retrieve verified Aadhaar document.";
         throw new Error(errMsg);
@@ -237,7 +239,7 @@ class MessageCentralService {
       const hasIdentity = rawDoc && (rawDoc.name || rawDoc.full_name || rawDoc.user_name || rawDoc.candidate_name || rawDoc.dob || rawDoc.date_of_birth || rawDoc.aadhaar_number || rawDoc.masked_aadhaar || rawDoc.uid);
       if (!hasIdentity) {
         logger.warn(`[MESSAGECENTRAL] get-document returned no identity data yet: ${JSON.stringify(respData).slice(0, 300)}`);
-        throw new Error("DigiLocker verification is still in progress. Please finish the OTP step on the UIDAI page, then click Fetch Details again.");
+        throw new Error(`DigiLocker verification is still in progress. Please finish the OTP step on the UIDAI page, then click Fetch Details again. (Provider reply: ${JSON.stringify(respData).slice(0, 200)})`);
       }
       return this.parseDemographics(rootData);
     } catch (err) {

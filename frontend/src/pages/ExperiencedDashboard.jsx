@@ -656,13 +656,24 @@ export default function ExperiencedDashboard({ profile: propProfile, onEditStage
   const pendingInvites = invites.filter((i) => i.status !== 'confirmed');
   const pxStages = (passportData && passportData.stages) || {};
   const pxCerts = pxStages[6]?.['add-certification'] || [];
+  const pxFilled = (v) => v !== undefined && v !== null && String(v).trim() !== '' && !(Array.isArray(v) && v.length === 0);
+  const pxHas = (stageNum, sectionId, keys) => {
+    const sec = pxStages[stageNum]?.[sectionId];
+    const rec = Array.isArray(sec) ? sec[0] : sec;
+    return Boolean(rec && typeof rec === 'object' && keys.every((k) => pxFilled(rec[k])));
+  };
+  const identityEarned = Boolean(profile?.stage1?.aadhaarVerified || profile?.stage1?.aadhaarStatus === 'VERIFIED' || profile?.stage1?.fullName);
+  const educationEarned = pxHas(2, 'education', ['highestQualification', 'degreeCourse', 'collegeName', 'yearOfPassing']);
+  const employmentEarned = pxHas(3, 'current-previous-employment-entry', ['companyName', 'designation', 'employmentType', 'dateOfJoining']);
+  const rcmEarned = pxHas(4, 'technical-expertise', ['primaryDomain']);
+  const docsEarned = Object.values(pxStages[7]?.['career-documents'] || {}).some(pxFilled);
   const badgeCriteria = [
-    { key: 'identity', label: 'Identity Details Confirmed', icon: <i className="fa-solid fa-id-card" />, earned: completedStages.includes(1) },
-    { key: 'education', label: 'Education & Training Added', icon: <i className="fa-solid fa-graduation-cap" />, earned: completedStages.includes(2) },
-    { key: 'employment', label: 'Employment Timeline Built', icon: <i className="fa-solid fa-briefcase" />, earned: completedStages.includes(3) },
-    { key: 'rcm', label: 'RCM Expertise Captured', icon: <i className="fa-solid fa-laptop-medical" />, earned: completedStages.includes(4) },
+    { key: 'identity', label: 'Identity Details Confirmed', icon: <i className="fa-solid fa-id-card" />, earned: identityEarned },
+    { key: 'education', label: 'Education & Training Added', icon: <i className="fa-solid fa-graduation-cap" />, earned: educationEarned },
+    { key: 'employment', label: 'Employment Timeline Built', icon: <i className="fa-solid fa-briefcase" />, earned: employmentEarned },
+    { key: 'rcm', label: 'RCM Expertise Captured', icon: <i className="fa-solid fa-laptop-medical" />, earned: rcmEarned },
     { key: 'cert', label: 'Certification Added', icon: <i className="fa-solid fa-certificate" />, earned: pxCerts.length > 0 },
-    { key: 'docs', label: 'Career Documents Uploaded', icon: <i className="fa-solid fa-file-lines" />, earned: completedStages.includes(7) },
+    { key: 'docs', label: 'Career Documents Uploaded', icon: <i className="fa-solid fa-file-lines" />, earned: docsEarned },
     { key: 'passport', label: 'Career Passport Published', icon: <i className="fa-solid fa-passport" />, earned: Boolean(passportData?.published) },
   ];
   const visibleBadgeCriteria = badgeCriteria;
