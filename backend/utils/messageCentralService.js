@@ -28,8 +28,9 @@ class MessageCentralService {
       "Content-Type": "application/json",
       accept: "application/json",
       // Message Central now requires these two headers on every eKYC call (the 422 "Field required" error).
-      purpose: (process.env.MESSAGECENTRAL_PURPOSE || "Identity verification for candidate profile on Talentera").trim(),
-      company_name: (process.env.MESSAGECENTRAL_COMPANY_NAME || "Talentera").trim(),
+      // Message Central allows at most 50 characters in each of these headers.
+      purpose: (process.env.MESSAGECENTRAL_PURPOSE || "Candidate identity verification").trim().slice(0, 50),
+      company_name: (process.env.MESSAGECENTRAL_COMPANY_NAME || "Talentera").trim().slice(0, 50),
       ...extraHeaders,
     };
   }
