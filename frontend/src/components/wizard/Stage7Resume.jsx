@@ -970,14 +970,14 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
         const s7 = candidateObj.stage7 || {};
         const s8 = candidateObj.stage8 || {};
 
-        const aadhaarEarned = Boolean(s1.aadhaarVerified === true || s1.aadhaarStatus === "VERIFIED" || completedStages.includes(1));
-        const academyEarned = Boolean(completedStages.includes(2) || s2.verified || (!isNonTrainedProfile && Boolean(s2.academyName) && s2.trainingPath !== "self") || Boolean(s2.academyAssessmentScore));
-        const certEarned = Boolean(s3.certStatus === "verified" || completedStages.includes(3) || ((Array.isArray(certificationsList) ? certificationsList.length > 0 : Boolean(s3.certCode)) && s3.certStatus !== "rejected"));
-        const assessmentEarned = Boolean(s4.passed === true || (assessmentScore !== null && Number(assessmentScore) >= 70) || completedStages.includes(4));
-        const videoEarned = Boolean(s5.verified === true || Boolean(s5.videoUrl) || (videoScore !== null && Number(videoScore) >= 70) || completedStages.includes(5));
-        const chartsEarned = Boolean((totalCharts || 0) > 0 || s6.verified === true || completedStages.includes(6));
-        const resumeEarned = Boolean(completedStages.includes(7) || s7.built === true || candidateObj.resumeBuilt || true);
-        const trackEarned = Boolean(completedStages.includes(8) || Boolean(s8.employmentStatus) || candidateObj.isSubmitted === true);
+        const aadhaarEarned = Boolean(s1.aadhaarVerified === true || s1.aadhaarStatus === "VERIFIED");
+        const academyEarned = Boolean(s2.verified || (!isNonTrainedProfile && Boolean(s2.academyName) && s2.trainingPath !== "self") || Boolean(s2.academyAssessmentScore));
+        const certEarned = Boolean(s3.certStatus === "verified" || ((Array.isArray(certificationsList) ? certificationsList.length > 0 : Boolean(s3.certCode)) && s3.certStatus !== "rejected"));
+        const assessmentEarned = Boolean(s4.passed === true || (assessmentScore !== null && Number(assessmentScore) >= 70));
+        const videoEarned = Boolean(s5.verified === true || Boolean(s5.videoUrl) || (videoScore !== null && Number(videoScore) >= 70));
+        const chartsEarned = Boolean((totalCharts || 0) > 0 || s6.verified === true);
+        const resumeEarned = Boolean(s7.built === true || candidateObj.resumeBuilt);
+        const trackEarned = Boolean(s8.employmentStatus);
 
         const earnedBadges = [];
         if (aadhaarEarned) {

@@ -598,13 +598,13 @@ export default function FresherDashboard({ profile: propProfile, onEditStage }) 
   const pendingInvites = invites.filter((i) => i.status !== 'confirmed');
   const badgeCriteria = [
     { key: 'aadhaar', label: 'Aadhaar Identity Verified', icon: <i className="fa-solid fa-id-card" />, earned: !!profile?.stage1?.aadhaarVerified },
-    { key: 'academy', label: 'Academy Foundation Complete', icon: <i className="fa-solid fa-graduation-cap" />, earned: completedStages.includes(2) },
+    { key: 'academy', label: 'Academy Foundation Complete', icon: <i className="fa-solid fa-graduation-cap" />, earned: Boolean(profile?.stage2?.verified === true || profile?.stage2?.academyName || profile?.stage2?.academyAssessmentScore || profile?.stage2?.academyStatus === 'verified') },
     { key: 'cert', label: 'Certification Verified', icon: <i className="fa-solid fa-certificate" />, earned: profile?.stage3?.certStatus === 'verified' },
     { key: 'assessment', label: 'Assessment Passed', icon: <i className="fa-solid fa-brain" />, earned: !!(profile?.stage4?.passed) },
     { key: 'video', label: 'Video Pitch Verified', icon: <i className="fa-solid fa-video" />, earned: !!(profile?.stage5?.verified) },
     { key: 'charts', label: 'Live Charts Logged', icon: <i className="fa-solid fa-laptop" />, earned: (profile?.stage6?.totalCharts || 0) > 0 },
-    { key: 'resume', label: 'Resume Built', icon: <i className="fa-solid fa-file-lines" />, earned: completedStages.includes(7) },
-    { key: 'track', label: 'Employment Status Set', icon: <i className="fa-solid fa-location-dot" />, earned: completedStages.includes(8) },
+    { key: 'resume', label: 'Resume Built', icon: <i className="fa-solid fa-file-lines" />, earned: Boolean(profile?.stage7?.built === true || profile?.resumeBuilt) },
+    { key: 'track', label: 'Employment Status Set', icon: <i className="fa-solid fa-location-dot" />, earned: Boolean(profile?.stage8?.employmentStatus) },
   ];
   const visibleBadgeCriteria = badgeCriteria;
   const badgesEarnedCount = visibleBadgeCriteria.filter((b) => b.earned).length;
