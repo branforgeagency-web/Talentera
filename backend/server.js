@@ -73,7 +73,11 @@ app.use(
         }
       }
 
-      if (allowedOrigins.includes(origin) || /\.vercel\.app$/.test(origin)) {
+      if (
+        allowedOrigins.includes(origin) ||
+        /\.vercel\.app$/.test(origin) ||
+        /\.amplifyapp\.com$/.test(origin)
+      ) {
         return callback(null, true);
       }
 
