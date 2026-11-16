@@ -551,7 +551,7 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
   }
 
   async function save(draft) {
-    if (!draft) {
+    if (!draft && !px?.testMode) {
       const missing = computeMissing(active, form[active]);
       if (missing.size) { showMissing(missing); return; }
     }
@@ -572,7 +572,7 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
   }
 
   async function publish() {
-    const missing = computeMissing(8, form[8]);
+    const missing = px?.testMode ? new Set() : computeMissing(8, form[8]);
     if (missing.size) { setActive(8); showMissing(missing); return; }
     setBusy("publish"); setErrors([]);
     try {

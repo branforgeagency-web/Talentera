@@ -103,7 +103,9 @@ export default function IdVerification({ idType, verified, maskedId, onVerified,
       if (!popupRef.current) setMessage("Your browser blocked the popup. Allow popups for this site, or use the link below.");
       startPolling(s.verificationId, s.referenceId);
     } catch (err) {
-      setError(err?.response?.data?.message || err.message || "Could not start the verification. Please try again.");
+      const body = err?.response?.data;
+      const detail = body && (body.message || body.error || (typeof body === "string" ? body.slice(0, 160) : JSON.stringify(body).slice(0, 160)));
+      setError(detail ? `${detail}${err?.response?.status ? ` (code ${err.response.status})` : ""}` : (err.message || "Could not start the verification. Please try again."));
     }
     setStarting(false);
   }

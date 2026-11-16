@@ -470,6 +470,11 @@ router.post("/submit", async (req, res) => {
 // ---------------------------------------------------------------------------
 // Experienced Career Passport (8 stages) - see utils/experiencedPassport.js
 // ---------------------------------------------------------------------------
+// With test mode on, every Career Passport stage saves and moves on without the required-field
+// checks (stages are still completed in order). Turn OFF (PASSPORT_TEST_MODE=false) before real users.
+// ON by default now (no setting needed on the deployed site); set PASSPORT_TEST_MODE=false to bring the checks back.
+const passportTestMode = () => String(process.env.PASSPORT_TEST_MODE || "true").toLowerCase() !== "false";
+
 function passportPayload(candidate) {
   const px = candidate.experienced || {};
   const st = px.stages || {};
@@ -478,6 +483,7 @@ function passportPayload(candidate) {
     stages: st,
     completed: px.completed || [],
     published: Boolean(px.published),
+    testMode: passportTestMode(),
     publishedAt: px.publishedAt || null,
     uploads: px.uploads || [],
     experience: exp,
@@ -596,7 +602,7 @@ router.put("/passport/stage/:n", async (req, res) => {
         if (!done.has(i)) return res.status(400).json({ message: `Complete Stage ${i} before Stage ${n}.` });
       }
       // validate against the merged view so cross-stage lookups (e.g. stage 3 proof) see the fresh data
-      const errors = passport.validateStage(n, data, px.uploads);
+      const errors = passportTestMode() ? [] : passport.validateStage(n, data, px.uploads);
       if (errors.length) return res.status(400).json({ message: errors[0], errors });
     }
 
@@ -627,7 +633,7 @@ router.post("/passport/publish", async (req, res) => {
       if (!done.has(i)) return res.status(400).json({ message: `Complete Stage ${i} before publishing your Career Passport.` });
     }
     const data = passport.normalizeStage(8, req.body?.data, px.uploads);
-    const errors = passport.validateStage(8, data, px.uploads);
+    const errors = passportTestMode() ? [] : passport.validateStage(8, data, px.uploads);
     if (errors.length) return res.status(400).json({ message: errors[0], errors });
 
     px.stages = { ...(px.stages || {}), 8: data };
@@ -1567,6 +1573,30 @@ router.post("/video-platform/sync", async (req, res) => {
 
 // GET /api/candidate/assessment-questions?domain=...
 // Fetches the 5 syllabus sections and 25 questions tailored to candidate's domain
+// Small seeded PRNG + shuffle so a candidate's question paper is stable for one attempt.
+function seededRandom(seedStr) {
+  let h = 1779033703 ^ String(seedStr).length;
+  for (let i = 0; i < seedStr.length; i++) {
+    h = Math.imul(h ^ seedStr.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  let a = h >>> 0;
+  return () => {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function seededShuffle(list, rand) {
+  const arr = list.slice();
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 router.get("/assessment-questions", async (req, res) => {
   try {
     let domain = req.query.domain;
@@ -1642,7 +1672,12 @@ router.get("/assessment-questions", async (req, res) => {
       const onlyDefaults = sections.filter((sec) => defaultKeys.has(sec.key));
       if (onlyDefaults.length >= 3) sections = onlyDefaults;
     }
-    sections = sections.slice(0, 5).map((sec) => ({ ...sec, questions: sec.questions.slice(0, 5) }));
+    // Each section holds a larger bank (e.g. 25). Show 5 per section, picked with a seed made from the candidate
+    // and their attempt number: a refresh mid-test keeps the same paper, a retake gets a different one.
+    const seedCand = await Candidate.findById(req.candidateId).select("stage4").lean();
+    const attemptNo = Array.isArray(seedCand?.stage4?.attempts) ? seedCand.stage4.attempts.length : 0;
+    const rand = seededRandom(`${req.candidateId}:${attemptNo}`);
+    sections = sections.slice(0, 5).map((sec) => ({ ...sec, questions: seededShuffle(sec.questions, rand).slice(0, 5) }));
 
     res.json({
       success: true,

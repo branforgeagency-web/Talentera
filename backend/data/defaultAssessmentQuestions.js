@@ -1032,6 +1032,27 @@ const DEFAULT_ASSESSMENT_DOMAINS = [
   },
 ];
 
+// Medical Coding bank (Anatomy, Medical Terminology, Physiology, Pathology, Medical Procedures):
+// 5 sections x 25 questions, kept in its own JSON file so it is easy to edit.
+const MEDICAL_CODING_BANK = require("./medicalCodingAssessmentBank.json");
+const medicalCodingDomain = DEFAULT_ASSESSMENT_DOMAINS.find((d) => d.domain === "Medical Coding");
+if (medicalCodingDomain) {
+  medicalCodingDomain.sections = MEDICAL_CODING_BANK.map((sec) => ({
+    key: sec.key,
+    name: sec.name,
+    icon: "🎯",
+    sub: sec.sub,
+    order: sec.order,
+    questions: sec.questions.map((q) => ({
+      topic: sec.name,
+      question: q.question,
+      options: q.options,
+      correct: q.correct,
+      explanation: `Correct answer: ${q.options[q.correct]}.`,
+    })),
+  }));
+}
+
 const DEFAULT_ASSESSMENT_QUESTIONS = [];
 DEFAULT_ASSESSMENT_DOMAINS.forEach((domainItem) => {
   domainItem.sections.forEach((sec, sIdx) => {

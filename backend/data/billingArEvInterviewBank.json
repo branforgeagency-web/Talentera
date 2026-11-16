@@ -1,0 +1,857 @@
+[
+ {
+  "text": "What is medical billing?",
+  "correctAnswer": "Medical billing is the process of submitting healthcare claims to insurance companies to receive payment for medical services provided by healthcare providers. It involves patient registration, insurance verification, charge entry, claim submission, payment posting, denial management and AR follow-up. The main objective of medical billing is to ensure that healthcare providers receive accurate and timely reimbursement for the services rendered.",
+  "keywords": [
+   "Claim Submission",
+   "Insurance Reimbursement",
+   "Revenue Cycle"
+  ]
+ },
+ {
+  "text": "What is the Revenue Cycle Management (RCM) process?",
+  "correctAnswer": "Revenue Cycle Management is the complete financial process followed by healthcare providers from patient registration to final payment collection. The major steps are: 1.Patient registration. 2.Insurance verification. 3.Authorization. 4.Medical coding. 5.Charge entry. 6.Claim submission. 7.Payment posting. 8.Denial management. 9.AR follow-up. 10.Patient billing and final account closure. The main goal of RCM is to improve revenue collection and reduce claim denials.",
+  "keywords": [
+   "Patient Registration",
+   "Claim Submission",
+   "Denial Management"
+  ]
+ },
+ {
+  "text": "What is the difference between medical billing and medical coding?",
+  "correctAnswer": "Medical coding is the process of converting medical diagnoses, procedures and services into standardized codes such as ICD-10-CM, CPT and HCPCS. Medical billing is the process of using the coded information to prepare and submit claims to insurance companies and collect payments. In simple terms, coding identifies what services were provided, while billing ensures that the provider gets reimbursed for those services.",
+  "keywords": [
+   "Standardized Codes",
+   "Claim Preparation",
+   "Reimbursement"
+  ]
+ },
+ {
+  "text": "What is a healthcare provider?",
+  "correctAnswer": "A healthcare provider is an individual or organization that delivers medical services to patients. Examples include: Physicians. Hospitals. Clinics. Surgeons. Laboratories. Diagnostic imaging centers.",
+  "keywords": [
+   "Physicians",
+   "Hospitals",
+   "Medical Services"
+  ]
+ },
+ {
+  "text": "What is a payer?",
+  "correctAnswer": "A payer is an insurance company or government healthcare program responsible for paying all or part of the medical expenses according to the patient's insurance benefits. Examples include Medicare, Medicaid, UnitedHealthcare, Aetna, Cigna and Blue Cross Blue Shield.",
+  "keywords": [
+   "Insurance Company",
+   "Medicare/Medicaid",
+   "Reimburse Expenses"
+  ]
+ },
+ {
+  "text": "What is the difference between a provider and a payer?",
+  "correctAnswer": "A provider delivers healthcare services to patients, whereas a payer is responsible for reimbursing the provider according to the patient's insurance coverage. For example, a physician provides treatment, and Aetna processes the claim and pays the eligible amount.",
+  "keywords": [
+   "Delivers Care",
+   "Reimburses Provider",
+   "Insurance Coverage"
+  ]
+ },
+ {
+  "text": "What is a medical claim?",
+  "correctAnswer": "A medical claim is a request submitted by a healthcare provider to an insurance company for reimbursement of medical services provided to a patient. It contains patient details, provider information, diagnosis codes, procedure codes, modifiers, charges and other necessary information.",
+  "keywords": [
+   "Reimbursement Request",
+   "Diagnosis & Procedure Codes",
+   "Provider Information"
+  ]
+ },
+ {
+  "text": "What is a clean claim?",
+  "correctAnswer": "A clean claim is a claim that contains complete and accurate information and can be processed by the insurance company without requiring additional information or correction. A clean claim helps reduce processing delays and unnecessary denials.",
+  "keywords": [
+   "Accurate Information",
+   "No Corrections",
+   "Faster Processing"
+  ]
+ },
+ {
+  "text": "What is the difference between a rejected claim and a denied claim?",
+  "correctAnswer": "A rejected claim is a claim that fails initial submission or clearinghouse validation because of incorrect or missing information and generally does not enter the payer's adjudication process. A denied claim is a claim that has been received and adjudicated by the insurance company but is not approved for payment, either partially or completely. For example, an invalid member ID may cause a rejection, while a lack of medical necessity may result in a denial.",
+  "keywords": [
+   "Clearinghouse Validation",
+   "Adjudication",
+   "Invalid Member ID"
+  ]
+ },
+ {
+  "text": "What is the difference between CMS-1500 and UB-04?",
+  "correctAnswer": "CMS-1500 is a standard claim form used for professional medical services, generally submitted by physicians and other non-institutional providers. UB-04, also called CMS-1450, is used for institutional billing, such as hospitals and certain healthcare facilities. The main difference is that CMS-1500 is used for professional claims, whereas UB-04 is used for institutional claims.",
+  "keywords": [
+   "Professional Claims",
+   "Institutional Claims",
+   "CMS-1450"
+  ]
+ },
+ {
+  "text": "What are the different types of health insurance in the USA?",
+  "correctAnswer": "The major types of health insurance in the United States are: 1.Medicare – Federal health insurance primarily for individuals aged 65 and older and certain younger individuals with qualifying disabilities or conditions. 2.Medicaid – A joint federal and state program providing healthcare coverage to eligible individuals based on income and other eligibility requirements. 3.Commercial Insurance – Health insurance provided by private insurance companies. 4.TRICARE – Healthcare coverage for eligible military members, retirees and their families. 5.Workers' Compensation – Insurance covering eligible work-related injuries and illnesses. 6.Marketplace Insurance – Individual and family health plans purchased through the Health Insurance Marketplace.",
+  "keywords": [
+   "Medicare",
+   "Medicaid",
+   "Commercial Insurance"
+  ]
+ },
+ {
+  "text": "What is Medicare?",
+  "correctAnswer": "Medicare is a federal health insurance program in the United States, primarily designed for individuals aged 65 and older. It also covers certain younger individuals with disabilities and people with End-Stage Renal Disease or ALS under applicable eligibility rules. Medicare has four main parts: Part A – Hospital insurance. Part B – Medical insurance. Part C – Medicare Advantage plans offered by private insurers. Part D – Prescription drug coverage.",
+  "keywords": [
+   "Age 65+",
+   "Parts A B C D",
+   "Federal Program"
+  ]
+ },
+ {
+  "text": "What is Medicaid?",
+  "correctAnswer": "Medicaid is a joint federal and state healthcare program that provides medical coverage to eligible low-income individuals and families, including certain children, pregnant women, elderly individuals and people with disabilities. Eligibility requirements and coverage vary by state.",
+  "keywords": [
+   "Low-income",
+   "Federal & State",
+   "Eligibility Varies by State"
+  ]
+ },
+ {
+  "text": "What is the difference between Medicare and Medicaid?",
+  "correctAnswer": "Medicare is primarily based on age or qualifying disability and is administered by the federal government. Medicaid is based mainly on financial eligibility and other state-specific requirements. It is jointly funded by federal and state governments. A person can qualify for both programs. Such individuals are called dual-eligible beneficiaries.",
+  "keywords": [
+   "Age/Disability",
+   "Financial Eligibility",
+   "Dual-eligible"
+  ]
+ },
+ {
+  "text": "What is commercial insurance?",
+  "correctAnswer": "Commercial insurance is health insurance provided by private insurance companies rather than directly through government healthcare programs. Examples include Aetna, Cigna, UnitedHealthcare and Blue Cross Blue Shield. These plans may be employer-sponsored or individually purchased.",
+  "keywords": [
+   "Private Insurers",
+   "Employer-sponsored",
+   "Aetna/Cigna/UHC"
+  ]
+ },
+ {
+  "text": "What is the difference between HMO and PPO?",
+  "correctAnswer": "HMO stands for Health Maintenance Organization, while PPO stands for Preferred Provider Organization. An HMO generally requires members to use its network of providers and often requires a primary care physician referral for specialist services, subject to plan rules. A PPO offers greater flexibility to visit out-of-network providers, usually at a higher cost, and generally does not require specialist referrals.",
+  "keywords": [
+   "Network Providers",
+   "Referral Required",
+   "Out-of-network Flexibility"
+  ]
+ },
+ {
+  "text": "What is a deductible?",
+  "correctAnswer": "A deductible is the amount a patient must pay for covered healthcare services before the insurance company starts paying according to the plan benefits. For example, if a patient has a $1,500 deductible and has not met any of it, the patient may need to pay the applicable covered expenses until the deductible is satisfied. Certain services may be covered before the deductible, depending on the plan.",
+  "keywords": [
+   "Patient Pays First",
+   "Before Benefits Begin",
+   "Plan Year"
+  ]
+ },
+ {
+  "text": "What is a copayment?",
+  "correctAnswer": "A copayment, commonly called a copay, is a fixed amount that a patient pays for a particular covered healthcare service. For example, a patient may have a $30 copayment for an office visit.",
+  "keywords": [
+   "Fixed Amount",
+   "Office Visit",
+   "Covered Service"
+  ]
+ },
+ {
+  "text": "What is coinsurance?",
+  "correctAnswer": "Coinsurance is the percentage of covered healthcare expenses that a patient is responsible for paying after satisfying the applicable deductible. For example, if the insurance plan covers 80% and the patient's coinsurance is 20%, the insurance pays 80% and the patient pays 20% of the applicable allowed amount.",
+  "keywords": [
+   "Percentage",
+   "After Deductible",
+   "Allowed Amount"
+  ]
+ },
+ {
+  "text": "What is the difference between deductible, copayment and coinsurance?",
+  "correctAnswer": "These are three different types of patient financial responsibilities. Deductible – The amount the patient pays before applicable insurance benefits begin. Copayment – A fixed amount paid for a covered service. Coinsurance – A percentage of the covered allowed amount paid by the patient.",
+  "keywords": [
+   "Deductible",
+   "Copayment",
+   "Coinsurance"
+  ]
+ },
+ {
+  "text": "What is an out-of-pocket maximum?",
+  "correctAnswer": "An out-of-pocket maximum is the maximum amount a member pays for covered in-network services during a plan year under applicable plan rules. After reaching this limit, the insurance plan generally pays 100% of covered in-network essential health benefits for the remainder of the plan year. Premiums and certain non-covered expenses do not count toward this limit.",
+  "keywords": [
+   "Maximum Amount",
+   "Plan Year",
+   "Insurance Pays 100%"
+  ]
+ },
+ {
+  "text": "What is primary insurance and secondary insurance?",
+  "correctAnswer": "Primary insurance is the insurance plan responsible for processing the claim first. Secondary insurance processes the remaining eligible balance after the primary insurance has processed the claim, subject to its coverage and coordination-of-benefits rules. For example, if a patient has Medicare as primary insurance and another qualifying insurance plan as secondary, Medicare processes the claim first.",
+  "keywords": [
+   "Primary Processes First",
+   "Remaining Balance",
+   "Coordination of Benefits"
+  ]
+ },
+ {
+  "text": "What is Coordination of Benefits (COB)?",
+  "correctAnswer": "Coordination of Benefits is the process used to determine the order in which multiple insurance plans pay healthcare claims. It helps prevent duplicate payments and ensures that the correct insurance company processes the claim as primary or secondary.",
+  "keywords": [
+   "Order of Payment",
+   "Duplicate Payment",
+   "Primary/Secondary"
+  ]
+ },
+ {
+  "text": "What is eligibility verification?",
+  "correctAnswer": "Eligibility verification is the process of checking whether a patient has active insurance coverage on the date of service. It includes verifying: Member ID. Patient name and date of birth. Policy effective date. Termination date. Plan type. Benefits. Copayment. Deductible. Coinsurance. Network status.",
+  "keywords": [
+   "Active Coverage",
+   "Date of Service",
+   "Member ID"
+  ]
+ },
+ {
+  "text": "What is prior authorization?",
+  "correctAnswer": "Prior authorization is approval obtained from the insurance company before providing certain medical services, procedures or medications. It helps determine whether the requested service meets the payer's coverage requirements. However, obtaining authorization does not guarantee payment. The claim must still satisfy all applicable coverage and billing requirements.",
+  "keywords": [
+   "Approval Before Service",
+   "Coverage Requirements",
+   "Not a Guarantee of Payment"
+  ]
+ },
+ {
+  "text": "What is AR calling?",
+  "correctAnswer": "AR calling stands for Accounts Receivable calling. It is the process of contacting insurance companies to follow up on outstanding medical claims and determine their current status. During AR calling, we contact insurance representatives to identify claim processing delays, payment issues, denials and other outstanding claim problems. Our objective is to resolve unpaid claims and ensure timely reimbursement to healthcare providers.",
+  "keywords": [
+   "Accounts Receivable",
+   "Claim Follow-up",
+   "Insurance Representative"
+  ]
+ },
+ {
+  "text": "What are AR days?",
+  "correctAnswer": "AR days represent the average number of days it takes for a healthcare provider to collect payments after providing services. It is an important financial metric used to evaluate the efficiency of the revenue cycle. Generally, lower AR days indicate faster payment collection, although the appropriate benchmark depends on the organization's payer mix and business model.",
+  "keywords": [
+   "Average Collection Time",
+   "Revenue Cycle Metric",
+   "Lower is Better"
+  ]
+ },
+ {
+  "text": "What are AR aging buckets?",
+  "correctAnswer": "AR aging buckets classify outstanding claims based on how long they have remained unpaid. Common categories are: 0–30 days. 31–60 days. 61–90 days. 91–120 days. Above 120 days. Claims in higher aging buckets require closer attention because delayed follow-up may increase the risk of collection loss and timely filing complications.",
+  "keywords": [
+   "0-30 Days",
+   "Aging Categories",
+   "Timely Filing Risk"
+  ]
+ },
+ {
+  "text": "What is the difference between AR calling and denial management?",
+  "correctAnswer": "AR calling focuses on following up on outstanding claims to determine their status and obtain payment. Denial management focuses on identifying the reasons for denied claims, correcting the underlying issues and taking appropriate actions such as resubmission, reconsideration or appeal. AR calling can identify denials, while denial management works toward resolving them.",
+  "keywords": [
+   "Claim Status Follow-up",
+   "Root Cause",
+   "Appeal/Resubmission"
+  ]
+ },
+ {
+  "text": "What information should you collect before making an insurance call?",
+  "correctAnswer": "Before making an insurance call, I would review the following information: 1.Patient name. 2.Date of birth. 3.Member ID. 4.Date of service. 5.Provider name. 6.NPI. 7.Tax ID, when required. 8.Claim number. 9.Billed amount. 10.Previous claim notes. 11.Previous call reference number. 12.Relevant EOB or ERA details. This preparation helps me complete the call efficiently and avoid unnecessary delays.",
+  "keywords": [
+   "Member ID",
+   "Claim Number",
+   "Date of Service"
+  ]
+ },
+ {
+  "text": "What is a claim control number?",
+  "correctAnswer": "A claim control number is a unique identification number assigned by an insurance payer to track a submitted claim. It helps insurance representatives locate the claim and provide its current processing status. It may also be called a payer claim number or ICN, depending on the payer.",
+  "keywords": [
+   "Unique Payer ID",
+   "ICN",
+   "Claim Tracking"
+  ]
+ },
+ {
+  "text": "What is timely filing?",
+  "correctAnswer": "Timely filing is the deadline established by an insurance company for submitting a medical claim after the date of service. For example, if an insurance company has a 90-day timely filing limit, the claim must be submitted within the applicable 90-day period. The filing limit varies depending on the payer, provider contract and type of claim.",
+  "keywords": [
+   "Submission Deadline",
+   "Payer Limit",
+   "Date of Service"
+  ]
+ },
+ {
+  "text": "What is claim status inquiry?",
+  "correctAnswer": "Claim status inquiry is the process of contacting an insurance company or checking its online portal to determine whether a submitted claim has been received, processed, denied, paid or is still pending.",
+  "keywords": [
+   "Portal/Phone",
+   "Received/Processed",
+   "Paid/Denied/Pending"
+  ]
+ },
+ {
+  "text": "What is a claim pending?",
+  "correctAnswer": "A pending claim is a claim that has been received by the insurance company but has not yet completed processing. It may be pending due to medical review, additional information requirements, coordination of benefits or other processing reasons. During follow-up, we should identify the exact reason for the delay and obtain the expected turnaround time.",
+  "keywords": [
+   "Not Fully Processed",
+   "Medical Review",
+   "Additional Information"
+  ]
+ },
+ {
+  "text": "What is a reconsideration?",
+  "correctAnswer": "A reconsideration is a request asking the insurance company to review a previously processed claim again when the provider believes the original processing decision was incorrect. The provider generally submits supporting documentation or additional information depending on the payer's requirements.",
+  "keywords": [
+   "Review Request",
+   "Incorrect Decision",
+   "Supporting Documents"
+  ]
+ },
+ {
+  "text": "What is an appeal?",
+  "correctAnswer": "An appeal is a formal request submitted to an insurance company challenging a claim denial or payment decision. The appeal should include the reason for disagreement, relevant medical records, supporting documentation and other required information.",
+  "keywords": [
+   "Formal Request",
+   "Denial Challenge",
+   "Medical Records"
+  ]
+ },
+ {
+  "text": "What is a corrected claim?",
+  "correctAnswer": "A corrected claim is a previously submitted claim that is resubmitted with corrected or updated information. For example, if the original claim contains an incorrect modifier or diagnosis code, the provider may submit a corrected claim according to payer guidelines.",
+  "keywords": [
+   "Resubmitted Claim",
+   "Corrected Information",
+   "Payer Guidelines"
+  ]
+ },
+ {
+  "text": "What is a medical records request?",
+  "correctAnswer": "A medical records request occurs when an insurance company requires additional clinical documentation to evaluate a claim. The payer may request operative reports, progress notes, diagnostic reports or other supporting medical records. The AR team should document the request and coordinate with the appropriate medical records department.",
+  "keywords": [
+   "Clinical Documentation",
+   "Operative Reports",
+   "Medical Records Department"
+  ]
+ },
+ {
+  "text": "What is a claim reference number?",
+  "correctAnswer": "A claim reference number is a tracking number provided by the insurance representative for a specific inquiry or interaction. It helps the provider refer to the previous communication if additional follow-up is required.",
+  "keywords": [
+   "Tracking Number",
+   "Specific Inquiry",
+   "Previous Communication"
+  ]
+ },
+ {
+  "text": "What is a call reference number, and why is it important?",
+  "correctAnswer": "A call reference number is an identification number assigned to a particular interaction with the insurance company. It is important because it provides a reference for the discussion, information received and actions confirmed during the call. I always make sure to document the reference number before ending the call.",
+  "keywords": [
+   "Call Documentation",
+   "Interaction ID",
+   "Follow-up Reference"
+  ]
+ },
+ {
+  "text": "What is denial management?",
+  "correctAnswer": "Denial management is the process of identifying, analyzing, correcting and resolving claims denied by insurance companies. It involves reviewing denial codes, identifying the root cause, taking corrective action and preventing similar denials in the future.",
+  "keywords": [
+   "Root Cause",
+   "Corrective Action",
+   "Prevent Future Denials"
+  ]
+ },
+ {
+  "text": "What is an EOB?",
+  "correctAnswer": "EOB stands for Explanation of Benefits. It is a statement issued by an insurance company explaining how a medical claim was processed. It generally contains: Billed amount. Allowed amount. Paid amount. Adjustments. Patient responsibility. Denial information. An EOB is not necessarily a bill.",
+  "keywords": [
+   "Explanation of Benefits",
+   "Allowed Amount",
+   "Patient Responsibility"
+  ]
+ },
+ {
+  "text": "What is an ERA?",
+  "correctAnswer": "ERA stands for Electronic Remittance Advice. It is an electronic document sent by the insurance company to explain how a submitted claim was adjudicated. It contains payment details, adjustment information and patient responsibility information.",
+  "keywords": [
+   "Electronic Remittance Advice",
+   "Payment Details",
+   "Adjustment Information"
+  ]
+ },
+ {
+  "text": "What are CARC and RARC codes?",
+  "correctAnswer": "CARC stands for Claim Adjustment Reason Code, and RARC stands for Remittance Advice Remark Code. CARC explains why a claim or service line was adjusted or denied. RARC provides additional information about the adjustment or denial. Both codes help billing teams understand the reason for claim processing outcomes.",
+  "keywords": [
+   "Claim Adjustment Reason Code",
+   "Remittance Advice Remark Code",
+   "Denial Explanation"
+  ]
+ },
+ {
+  "text": "What is CO-16?",
+  "correctAnswer": "CO-16 indicates that the claim lacks information or has submission or billing errors necessary for adjudication. The additional information may be identified through an associated remark code. For example, if the claim is missing required information, we should review the remark code, identify the missing information and take the appropriate corrective action.",
+  "keywords": [
+   "Missing Information",
+   "Billing Errors",
+   "Remark Code"
+  ]
+ },
+ {
+  "text": "What is CO-18?",
+  "correctAnswer": "CO-18 indicates a duplicate claim or service. It means the payer has identified the submitted claim or service as a possible duplicate of a previously processed claim. I would check the previous claim status, claim number, date of service and payment details before deciding whether any further action is needed.",
+  "keywords": [
+   "Duplicate Claim",
+   "Previous Claim Status",
+   "Date of Service"
+  ]
+ },
+ {
+  "text": "What is CO-22?",
+  "correctAnswer": "CO-22 indicates that the care may be covered by another payer due to coordination-of-benefits rules. I would verify the patient's insurance information and determine whether another insurance company should process the claim first.",
+  "keywords": [
+   "Another Payer",
+   "Coordination of Benefits",
+   "Verify Insurance"
+  ]
+ },
+ {
+  "text": "What is CO-29?",
+  "correctAnswer": "CO-29 indicates that the claim was received after the timely filing deadline. I would check the original submission date, clearinghouse acceptance report, payer receipt records and filing-limit requirements. If the claim was submitted within the applicable deadline, I would investigate whether proof of timely filing supports a dispute or appeal.",
+  "keywords": [
+   "Timely Filing",
+   "Proof of Submission",
+   "Appeal"
+  ]
+ },
+ {
+  "text": "What is CO-45?",
+  "correctAnswer": "CO-45 indicates that the charge exceeds the fee schedule, maximum allowable amount or contracted/legislated fee arrangement. It is generally a contractual adjustment rather than a denial. The difference between the billed charge and allowed amount is adjusted according to applicable contract terms.",
+  "keywords": [
+   "Fee Schedule",
+   "Contractual Adjustment",
+   "Allowed Amount"
+  ]
+ },
+ {
+  "text": "What is CO-50?",
+  "correctAnswer": "CO-50 indicates that the payer considers the service non-covered because it does not meet its medical necessity requirements. I would review the denial details, medical documentation, applicable payer policy and coding information to determine whether an appeal or another corrective action is appropriate.",
+  "keywords": [
+   "Medical Necessity",
+   "Non-covered",
+   "Appeal with Documentation"
+  ]
+ },
+ {
+  "text": "What is CO-97?",
+  "correctAnswer": "CO-97 indicates that the payment or allowance for a particular service is included in the payment or allowance for another service or procedure that has already been adjudicated. I would review the claim, procedure codes, modifiers and applicable bundling rules to determine whether the adjustment is correct.",
+  "keywords": [
+   "Bundled Service",
+   "Included in Another Procedure",
+   "Modifiers"
+  ]
+ },
+ {
+  "text": "What is PR-1?",
+  "correctAnswer": "PR-1 indicates that the patient is responsible for the deductible amount. The deductible amount is generally transferred to patient responsibility according to the patient's plan benefits.",
+  "keywords": [
+   "Patient Responsibility",
+   "Deductible",
+   "Plan Benefits"
+  ]
+ },
+ {
+  "text": "What is PR-2?",
+  "correctAnswer": "PR-2 indicates that the patient is responsible for coinsurance. It represents the patient's percentage-based financial responsibility for covered services.",
+  "keywords": [
+   "Coinsurance",
+   "Percentage",
+   "Patient Responsibility"
+  ]
+ },
+ {
+  "text": "What is PR-3?",
+  "correctAnswer": "PR-3 indicates that the patient is responsible for a copayment amount. It represents a fixed amount payable by the patient according to the insurance plan.",
+  "keywords": [
+   "Copayment",
+   "Fixed Amount",
+   "Patient Responsibility"
+  ]
+ },
+ {
+  "text": "What is the difference between CO and PR?",
+  "correctAnswer": "CO stands for Contractual Obligation, and PR stands for Patient Responsibility. CO adjustments generally represent amounts that are not collectible from the patient under the applicable contractual or payer arrangement. PR adjustments represent amounts that may be collected from the patient, subject to the applicable plan and billing rules.",
+  "keywords": [
+   "Contractual Obligation",
+   "Patient Responsibility",
+   "Not Collectible from Patient"
+  ]
+ },
+ {
+  "text": "What will you do if the insurance company says they have not received the claim?",
+  "correctAnswer": "First, I would verify the claim submission details in our billing system. I would check the original submission date, clearinghouse acceptance report and payer ID. If the claim was not received by the insurance company, I would verify the correct submission address or electronic payer ID and resubmit the claim according to payer guidelines. I would also document the action taken and maintain proof of submission.",
+  "keywords": [
+   "Submission Date",
+   "Clearinghouse Report",
+   "Resubmit Claim"
+  ]
+ },
+ {
+  "text": "What will you do if the claim is still pending after 45 days?",
+  "correctAnswer": "First, I would contact the insurance company and verify the claim status. I would ask the representative why the claim is still pending and whether any additional information is required. If the claim is under processing, I would obtain the expected processing time and call reference number. If additional documentation is required, I would coordinate with the appropriate department to submit it.",
+  "keywords": [
+   "Verify Status",
+   "Reason for Delay",
+   "Call Reference Number"
+  ]
+ },
+ {
+  "text": "What will you do if the insurance company says the claim has been paid, but the provider has not received the payment?",
+  "correctAnswer": "I would first verify the payment date, payment amount and payment method. Then I would ask the insurance representative for the EFT trace number or check number. I would also verify the payment details against the ERA and internal payment records. If the payment was issued but not received, I would follow the payer's payment-tracing procedure.",
+  "keywords": [
+   "EFT Trace Number",
+   "Payment Date",
+   "ERA Verification"
+  ]
+ },
+ {
+  "text": "What will you do if the insurance company denies a claim for missing authorization?",
+  "correctAnswer": "First, I would review the denial reason and verify whether authorization was required for the service. Then I would check the authorization records in the billing system. If authorization was obtained, I would verify the authorization number, approved dates, service and provider details. If the authorization information was not reported correctly, I would determine whether a corrected claim is appropriate. If authorization was not obtained, I would check the payer's retrospective authorization and appeal policies before taking further action.",
+  "keywords": [
+   "Authorization Number",
+   "Corrected Claim",
+   "Retro Authorization"
+  ]
+ },
+ {
+  "text": "What will you do if the insurance company denies the claim for timely filing?",
+  "correctAnswer": "I would first verify the payer's timely filing limit and calculate the applicable deadline. Then I would check the original claim submission date and clearinghouse acceptance records. If the claim was submitted within the deadline, I would collect supporting proof and submit a reconsideration or appeal according to payer guidelines. If the claim was genuinely submitted late, I would investigate the reason and determine whether an exception is available.",
+  "keywords": [
+   "Filing Limit",
+   "Proof of Timely Filing",
+   "Appeal"
+  ]
+ },
+ {
+  "text": "What will you do if the insurance company says the patient was inactive on the date of service?",
+  "correctAnswer": "I would verify the patient's member ID, date of birth and insurance policy details. Then I would check the policy effective date and termination date. I would also verify whether the patient had another active insurance plan on the date of service. Based on the findings, I would determine whether the claim should be corrected, submitted to another payer or handled according to the provider's patient billing policy.",
+  "keywords": [
+   "Policy Effective Date",
+   "Termination Date",
+   "Other Active Insurance"
+  ]
+ },
+ {
+  "text": "What will you do if the insurance company says another insurance is primary?",
+  "correctAnswer": "I would ask the representative for the other insurance information and the effective dates. Then I would verify the patient's coordination-of-benefits information. If another payer is confirmed as primary, I would arrange for the claim to be submitted to the primary insurance first. After primary adjudication, I would submit the claim to the secondary insurance with the primary EOB or ERA information.",
+  "keywords": [
+   "Other Insurance Details",
+   "Bill Primary First",
+   "Submit to Secondary"
+  ]
+ },
+ {
+  "text": "What will you do if the insurance company denies the claim as a duplicate?",
+  "correctAnswer": "I would review the previously submitted claim and check its status. I would verify the claim number, date of service, procedure codes, billed amount and payment details. If the previous claim was already paid, I would ensure that the payment is correctly posted. If the previous claim was denied or the new submission is not actually a duplicate, I would follow the payer's appropriate reconsideration process.",
+  "keywords": [
+   "Previous Claim Status",
+   "Payment Posting",
+   "Reconsideration"
+  ]
+ },
+ {
+  "text": "What will you do if insurance requests medical records?",
+  "correctAnswer": "I would confirm exactly which medical records are required and the submission deadline. I would document the request and coordinate with the medical records department. After obtaining the required documents, I would submit them through the payer-approved channel and maintain proof of submission. I would then follow up to confirm receipt and processing.",
+  "keywords": [
+   "Required Records",
+   "Medical Records Department",
+   "Proof of Submission"
+  ]
+ },
+ {
+  "text": "What will you do if the insurance company pays less than the expected amount?",
+  "correctAnswer": "I would compare the billed amount, allowed amount, contractual adjustment and paid amount. Then I would review the EOB or ERA to identify the reason for the payment difference. I would also verify the contracted reimbursement rate, modifiers, units and applicable fee schedule. If the payment is incorrect, I would follow the payer's dispute or reconsideration process.",
+  "keywords": [
+   "Allowed Amount",
+   "Contract Rate",
+   "Dispute/Reconsideration"
+  ]
+ },
+ {
+  "text": "What will you do if the insurance representative refuses to provide claim information?",
+  "correctAnswer": "I would remain professional and ask whether additional provider verification or authorization is required. I would provide the necessary information through the approved verification process. If the representative still cannot release the information, I would ask for the appropriate department or escalation procedure. I would never attempt to bypass the payer's security or verification requirements.",
+  "keywords": [
+   "Professional",
+   "Verification Process",
+   "Escalation"
+  ]
+ },
+ {
+  "text": "What will you do if two insurance representatives provide different claim status information?",
+  "correctAnswer": "I would verify the claim number and review the previous call documentation. I would ask the current representative to check the latest adjudication details. I would obtain the call reference number and document the information provided. If the discrepancy remains unresolved, I would request escalation to the appropriate department.",
+  "keywords": [
+   "Claim Number",
+   "Call Reference Number",
+   "Escalation"
+  ]
+ },
+ {
+  "text": "What will you do if a claim is denied for medical necessity?",
+  "correctAnswer": "I would review the denial code and payer explanation. Then I would check the diagnosis codes, procedure codes, medical records and applicable medical necessity policy. If the documentation supports the service, I would prepare an appeal with relevant clinical evidence. If the denial is correct, I would identify whether any other appropriate corrective action is available.",
+  "keywords": [
+   "Denial Code",
+   "Clinical Evidence",
+   "Appeal"
+  ]
+ },
+ {
+  "text": "How will you prioritize 100 outstanding claims?",
+  "correctAnswer": "I would prioritize claims based on aging, timely filing deadlines, claim value, denial reasons and payer response requirements. I would give immediate attention to claims approaching filing deadlines and high-value claims with actionable issues. I would also organize the remaining claims into aging buckets and maintain daily follow-up targets.",
+  "keywords": [
+   "Aging",
+   "Timely Filing Deadline",
+   "Claim Value"
+  ]
+ },
+ {
+  "text": "What is your approach when an insurance company does not respond to repeated follow-ups?",
+  "correctAnswer": "I would review the previous call notes, reference numbers and promised turnaround times. If the payer has exceeded its expected processing time, I would contact the appropriate department or request escalation. I would document each attempt and follow the organization's escalation SOP.",
+  "keywords": [
+   "Call Notes",
+   "Escalation",
+   "Documentation"
+  ]
+ },
+ {
+  "text": "How will you introduce yourself during an insurance call?",
+  "correctAnswer": "\"Good morning. My name is [Your Name], and I am calling from [Provider Name]. I would like to check the status of a claim for one of our patients. Could you please assist me with that?\"",
+  "keywords": [
+   "Professional Greeting",
+   "Provider Name",
+   "Claim Status"
+  ]
+ },
+ {
+  "text": "How will you ask for claim status?",
+  "correctAnswer": "\"Could you please check the current status of the claim submitted for the date of service [Date]? I have the patient's details and claim information available for verification.\"",
+  "keywords": [
+   "Date of Service",
+   "Claim Status",
+   "Patient Details"
+  ]
+ },
+ {
+  "text": "How will you ask why a claim is pending?",
+  "correctAnswer": "\"I can see that the claim is still showing as pending. Could you please check the exact reason for the delay? Is it currently under review, or is any additional information required from the provider?\"",
+  "keywords": [
+   "Exact Reason",
+   "Under Review",
+   "Additional Information"
+  ]
+ },
+ {
+  "text": "How will you ask for the expected processing time?",
+  "correctAnswer": "\"Could you please let me know the expected turnaround time for completing the claim processing? Also, from which date should we consider the processing timeframe?\"",
+  "keywords": [
+   "Turnaround Time",
+   "Processing Timeframe",
+   "Start Date"
+  ]
+ },
+ {
+  "text": "How will you ask for the call reference number?",
+  "correctAnswer": "\"Thank you for providing the information. Before we disconnect, could you please provide the reference number for today's call for our documentation?\"",
+  "keywords": [
+   "Reference Number",
+   "Documentation",
+   "Before Disconnecting"
+  ]
+ },
+ {
+  "text": "How will you close an insurance call professionally?",
+  "correctAnswer": "\"Thank you for your assistance today. I appreciate your time and support. Have a wonderful day.\"",
+  "keywords": [
+   "Thank You",
+   "Professional",
+   "Appreciation"
+  ]
+ },
+ {
+  "text": "What is NPI?",
+  "correctAnswer": "NPI stands for National Provider Identifier. It is a unique 10-digit identification number assigned to healthcare providers in the United States. It is used to identify healthcare providers in standard electronic healthcare transactions.",
+  "keywords": [
+   "National Provider Identifier",
+   "10-digit Number",
+   "Unique Provider ID"
+  ]
+ },
+ {
+  "text": "What is TIN?",
+  "correctAnswer": "TIN stands for Taxpayer Identification Number. It is used for tax identification purposes and may be required by insurance companies to identify a healthcare provider or billing entity. Examples include an Employer Identification Number (EIN) and Social Security Number (SSN), depending on the provider's circumstances.",
+  "keywords": [
+   "Taxpayer Identification Number",
+   "EIN/SSN",
+   "Billing Entity"
+  ]
+ },
+ {
+  "text": "What is a clearinghouse?",
+  "correctAnswer": "A clearinghouse is an organization that receives healthcare claims from providers, checks them for certain errors and forwards them to the appropriate insurance companies. It helps improve electronic claim submission and reduces administrative errors.",
+  "keywords": [
+   "Claim Scrubbing",
+   "Forwards Claims to Payers",
+   "Reduces Errors"
+  ]
+ },
+ {
+  "text": "What is EFT?",
+  "correctAnswer": "EFT stands for Electronic Funds Transfer. It is the electronic transfer of insurance payment directly into the provider's bank account.",
+  "keywords": [
+   "Electronic Funds Transfer",
+   "Direct Deposit",
+   "Insurance Payment"
+  ]
+ },
+ {
+  "text": "What is the difference between EFT and ERA?",
+  "correctAnswer": "EFT is the electronic transfer of money from the insurance company to the provider. ERA is the electronic document explaining how the insurance company processed the claim and calculated the payment. In simple terms, EFT is the payment, and ERA is the payment explanation.",
+  "keywords": [
+   "Payment",
+   "Payment Explanation",
+   "Electronic"
+  ]
+ },
+ {
+  "text": "What is a write-off?",
+  "correctAnswer": "A write-off is an adjustment that reduces the outstanding balance of a claim. For example, if a provider bills $200 and the contracted allowed amount is $150, the $50 difference may be adjusted as a contractual write-off, assuming the contract and payer rules permit it.",
+  "keywords": [
+   "Balance Adjustment",
+   "Contractual Write-off",
+   "Allowed Amount"
+  ]
+ },
+ {
+  "text": "What is a medical necessity denial?",
+  "correctAnswer": "A medical necessity denial occurs when the insurance company determines that the service provided does not meet its medical necessity or coverage criteria. The provider may need to submit supporting clinical documentation or appeal the decision.",
+  "keywords": [
+   "Coverage Criteria",
+   "Clinical Documentation",
+   "Appeal"
+  ]
+ },
+ {
+  "text": "What is a modifier in medical billing?",
+  "correctAnswer": "A modifier is a two-character code added to a CPT or HCPCS code to provide additional information about the service performed. It may explain circumstances such as a distinct service, professional or technical component, or other qualifying circumstances. Examples include modifiers 25, 26, 50 and 59. Their use must follow the applicable CPT and payer guidelines.",
+  "keywords": [
+   "Two-character Code",
+   "CPT/HCPCS",
+   "Additional Information"
+  ]
+ },
+ {
+  "text": "What is the difference between CPT, ICD-10-CM and HCPCS?",
+  "correctAnswer": "CPT – Describes medical procedures and professional services. ICD-10-CM – Describes patient diagnoses and medical conditions. HCPCS – Describes healthcare services, supplies, equipment and certain other items not fully represented by CPT. These code sets help communicate the services provided and the medical reasons for those services.",
+  "keywords": [
+   "CPT Procedures",
+   "ICD-10-CM Diagnoses",
+   "HCPCS Supplies"
+  ]
+ },
+ {
+  "text": "Tell me about yourself.",
+  "correctAnswer": "\"My name is [Your Name]. I have completed my [Qualification]. I have undergone training in medical billing and have knowledge of the US healthcare RCM process, insurance types, claim submission, denial management and AR calling. I am interested in building my career in the healthcare revenue cycle industry. I am a quick learner, comfortable working in a team and willing to improve my communication and technical skills.\"",
+  "keywords": [
+   "Qualification",
+   "Medical Billing Training",
+   "RCM Knowledge"
+  ]
+ },
+ {
+  "text": "Why do you want to work in medical billing?",
+  "correctAnswer": "\"I am interested in the US healthcare industry because it offers opportunities to learn healthcare processes, insurance operations and revenue cycle management. I would like to develop my technical and communication skills and build a long-term career in this field.\"",
+  "keywords": [
+   "US Healthcare",
+   "Revenue Cycle",
+   "Career Growth"
+  ]
+ },
+ {
+  "text": "What are your strengths?",
+  "correctAnswer": "\"My strengths are communication, patience, adaptability, willingness to learn and problem-solving. I can handle repetitive tasks while maintaining accuracy and productivity.\"",
+  "keywords": [
+   "Communication",
+   "Adaptability",
+   "Problem-solving"
+  ]
+ },
+ {
+  "text": "What is your weakness?",
+  "correctAnswer": "\"Sometimes I spend extra time verifying information because I want to maintain accuracy. However, I am working on improving my time management while maintaining quality.\"",
+  "keywords": [
+   "Accuracy",
+   "Time Management",
+   "Improvement"
+  ]
+ },
+ {
+  "text": "How would you handle work pressure?",
+  "correctAnswer": "\"I would organize my tasks according to priority, aging and deadlines. I would focus on completing my daily targets without compromising accuracy. If I face any difficulties, I would communicate with my team leader and seek guidance.\"",
+  "keywords": [
+   "Prioritize Tasks",
+   "Daily Targets",
+   "Team Leader"
+  ]
+ },
+ {
+  "text": "Are you comfortable working in US night shifts?",
+  "correctAnswer": "\"Yes, I understand that US healthcare processes require working according to US business hours. I am prepared to follow the assigned shift schedule and maintain consistency in my work.\"",
+  "keywords": [
+   "US Business Hours",
+   "Shift Schedule",
+   "Consistency"
+  ]
+ },
+ {
+  "text": "What will you do if you do not know the answer to an insurance representative's question?",
+  "correctAnswer": "\"I will not provide incorrect information. I will politely ask the representative to clarify the question. If necessary, I will verify the information with my team leader or the appropriate department before taking action.\"",
+  "keywords": [
+   "Clarify Question",
+   "Team Leader",
+   "Never Guess"
+  ]
+ },
+ {
+  "text": "How do you maintain accuracy in your work?",
+  "correctAnswer": "\"I follow the process guidelines, verify patient and claim information, review previous notes and document every action accurately. I also perform a final review before completing the task.\"",
+  "keywords": [
+   "Verify Information",
+   "Review Notes",
+   "Final Review"
+  ]
+ },
+ {
+  "text": "Why should we hire you?",
+  "correctAnswer": "\"You should hire me because I have a strong interest in medical billing, a willingness to learn and the ability to adapt to new processes. I am ready to work hard, achieve productivity targets and contribute to the organization's performance.\"",
+  "keywords": [
+   "Willingness to Learn",
+   "Adaptability",
+   "Productivity Targets"
+  ]
+ },
+ {
+  "text": "Where do you see yourself in the next three years?",
+  "correctAnswer": "\"I see myself as an experienced medical billing professional with strong knowledge of AR calling and denial management. I would also like to develop leadership skills and take responsibility for handling a team or process.\"",
+  "keywords": [
+   "Experienced Professional",
+   "AR Calling",
+   "Leadership"
+  ]
+ }
+]
