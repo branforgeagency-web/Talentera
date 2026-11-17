@@ -272,7 +272,7 @@ export default function FresherDashboard({ profile: propProfile, onEditStage }) 
     try {
       await api.post(`/candidate/hiring/offers/${app._id}/respond`, { accept });
       triggerToast(accept ? `Offer accepted. ${app.companyName} has been notified.` : 'Offer declined. The company has been notified.');
-      const resApps = await api.get('/candidate/applications');
+      const resApps = await api.get('/candidate/applications?profileType=fresher');
       const list = resApps.data?.applications || resApps.data || [];
       setApplications(list);
       setCompanyDetailApp((cur) => (cur ? list.find((x) => x._id === cur._id) || null : cur));
@@ -428,7 +428,7 @@ export default function FresherDashboard({ profile: propProfile, onEditStage }) 
       } catch (e) {}
 
       try {
-        const resApps = await api.get('/candidate/applications');
+        const resApps = await api.get('/candidate/applications?profileType=fresher');
         setApplications(resApps.data?.applications || resApps.data || []);
       } catch (e) {}
 
@@ -631,7 +631,7 @@ export default function FresherDashboard({ profile: propProfile, onEditStage }) 
   // Keep My Companies / Applications / Offers in step with what happened in Hiring Rounds or on the company side
   const refreshApplications = useCallback(async () => {
     try {
-      const r = await api.get('/candidate/applications');
+      const r = await api.get('/candidate/applications?profileType=fresher');
       const list = r.data?.applications || r.data || [];
       setApplications(list);
       setCompanyDetailApp((cur) => (cur ? list.find((x) => x._id === cur._id) || cur : cur));
@@ -647,7 +647,7 @@ export default function FresherDashboard({ profile: propProfile, onEditStage }) 
     try {
       await api.post(`/candidate/apply/${job.jobId}`, {});
       triggerToast(`Application sent to ${job.company}.`);
-      const resApps = await api.get('/candidate/applications');
+      const resApps = await api.get('/candidate/applications?profileType=fresher');
       setApplications(resApps.data?.applications || resApps.data || []);
     } catch (err) {
       triggerToast(err?.response?.data?.message || 'Could not submit application.');
@@ -1745,7 +1745,7 @@ export default function FresherDashboard({ profile: propProfile, onEditStage }) 
 
           {activeTab === 'hiring' && (
             <div className="page active" id="page-hiring" style={{ padding: 0 }}>
-              <CandidateHiringSection triggerToast={typeof triggerToast === 'function' ? triggerToast : undefined} onChanged={refreshApplications} />
+              <CandidateHiringSection profileType="fresher" triggerToast={typeof triggerToast === 'function' ? triggerToast : undefined} onChanged={refreshApplications} />
             </div>
           )}
 

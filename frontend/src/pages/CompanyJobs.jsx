@@ -51,6 +51,7 @@ export default function CompanyJobs() {
   const [editingJob, setEditingJob] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [togglingId, setTogglingId] = useState(null);
   const [uploadingId, setUploadingId] = useState(null);
 
@@ -117,6 +118,7 @@ export default function CompanyJobs() {
   }
 
   function setField(id, value) {
+    setFieldErrors((prev) => (prev[id] ? { ...prev, [id]: undefined } : prev));
     setForm((prev) => {
       const next = { ...prev, [id]: value };
       if (id === "level") {
@@ -136,6 +138,7 @@ export default function CompanyJobs() {
   }
 
   function toggleMulti(id, opt) {
+    setFieldErrors((prev) => (prev[id] ? { ...prev, [id]: undefined } : prev));
     setForm((prev) => {
       const current = prev[id] || [];
       const next = current.includes(opt) ? current.filter((o) => o !== opt) : [...current, opt];
@@ -167,11 +170,25 @@ export default function CompanyJobs() {
       toast("Enter at least the role title to save a draft.", "!");
       return;
     }
-    const missing = asDraft ? [] : STAGE9.items.filter((i) => REQUIRED_IDS.has(i.id) && isEmpty(form[i.id]));
+    const freshersJob = isFresherJob(form);
+    const missing = asDraft ? [] : STAGE9.items.filter((i) => {
+      if (!REQUIRED_IDS.has(i.id) || !isEmpty(form[i.id])) return false;
+      if (freshersJob && (EXPERIENCE_IDS.has(i.id) || i.id === "notice")) return false;
+      if (String(form.level || "") === "Experienced only" && (FRESHER_ONLY_IDS.has(i.id) || i.id === "elgpassout")) return false;
+      return true;
+    });
     if (missing.length > 0) {
-      toast(`Fill in: ${missing.map((i) => i.name).join(", ")}`, "!");
+      const errs = {};
+      missing.forEach((i) => { errs[i.id] = `${i.name} is required - please fill this in before continuing.`; });
+      setFieldErrors(errs);
+      toast(`Please fill the required fields (${missing.length}): ${missing.map((i) => i.name).join(", ")}`, "!");
+      setTimeout(() => {
+        const el = document.getElementById(`job-field-${missing[0].id}`);
+        if (el && el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 50);
       return;
     }
+    setFieldErrors({});
     setSubmitting(true);
     try {
       // Experience range and notice period don't apply when hiring freshers
@@ -461,7 +478,7 @@ export default function CompanyJobs() {
                     </div>
                   )}
                   {!hideExperience && (
-                  <div style={{ gridColumn: isFullWidth ? "1 / -1" : "auto" }}>
+                  <div id={`job-field-${item.id}`} style={{ gridColumn: isFullWidth ? "1 / -1" : "auto", ...(fieldErrors[item.id] ? { outline: "1.5px solid #DC2626", outlineOffset: 4, borderRadius: 10 } : {}) }}>
                     <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "#475569", marginBottom: 6 }}>
                       {item.name}
                       {REQUIRED_IDS.has(item.id) && <span style={{ color: "#DC2626" }}>*</span>}
@@ -584,6 +601,9 @@ export default function CompanyJobs() {
                         value={multiOtherText(form[item.id])}
                         onChange={(e) => setField(item.id, multiSetOther(form[item.id], e.target.value))}
                       />
+                    )}
+                    {fieldErrors[item.id] && (
+                      <div role="alert" style={{ color: "#DC2626", fontSize: 12, fontWeight: 600, marginTop: 6 }}>⚠ {fieldErrors[item.id]}</div>
                     )}
                   </div>
                   )}

@@ -1,3 +1,4 @@
+import Stage7Resume from "../wizard/Stage7Resume.jsx";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import api from "../../api/client";
 import SCHEMA from "../../data/experiencedSchema.json";
@@ -44,6 +45,15 @@ function emptyStage(stage) {
 function hydrate(stage, saved) {
   const d = emptyStage(stage);
   if (!saved) return d;
+  if (stage.num === 5 && saved["performance-metrics"] && !Array.isArray(saved["performance-metrics"])) {
+    // older saves kept one set of metrics as an object - turn it into the first performance record
+    const { performanceDetailsStatus, ...rest } = saved["performance-metrics"];
+    saved = {
+      ...saved,
+      "performance-metrics": Object.values(rest).some((v) => v !== "" && v != null) ? [rest] : [],
+      "performance-share": performanceDetailsStatus ? { performanceDetailsStatus } : saved["performance-share"],
+    };
+  }
   for (const sec of stage.sections) {
     if (sec.kind === "fields") {
       if (sec.repeatable) d[sec.id] = (saved[sec.id] || []).map((e) => ({ ...blank(sec.fields), ...e }));
@@ -56,12 +66,13 @@ function hydrate(stage, saved) {
 }
 
 function isHidden(stageNum, secId, key, entry, all) {
-  if (stageNum === 1 && secId === "current-career-status") {
+  if (stageNum === 3 && secId === "current-career-status") {
     const st = entry.currentEmploymentStatus;
     if (key === "noticePeriod") return !EMPLOYED.includes(st);
     if (key === "noticePeriodDays") return !EMPLOYED.includes(st) || entry.noticePeriod !== "Yes";
     if (key === "currentCompany" || key === "currentDesignation") return ["Not Currently Working", "Career Break"].includes(st);
   }
+  if (stageNum === 3 && key === "relievingLetterDoc") return entry.currentlyWorkingHere === "Yes"; // only previous companies have a relieving letter
   if (stageNum === 3 && (key === "careerGapDuration" || key === "careerGapReason")) {
     return entry.hasCareerGap !== "Yes";
   }
@@ -295,10 +306,9 @@ const isEmptyVal = (v) => v === undefined || v === null || (typeof v === "string
 
 // Conditionally-required fields (kept in step with validateStage in backend/utils/experiencedPassport.js)
 function conditionallyRequired(stageNum, secId, key, entry) {
-  if (stageNum === 1 && secId === "current-career-status") return EMPLOYED.includes(entry.currentEmploymentStatus) && (["noticePeriod", "currentCompany", "currentDesignation"].includes(key) || (key === "noticePeriodDays" && entry.noticePeriod === "Yes"));
+  if (stageNum === 3 && secId === "current-career-status") return EMPLOYED.includes(entry.currentEmploymentStatus) && (["noticePeriod", "currentCompany", "currentDesignation"].includes(key) || (key === "noticePeriodDays" && entry.noticePeriod === "Yes"));
   if (stageNum === 3 && key === "lastWorkingDate") return entry.currentlyWorkingHere !== "Yes";
   if (stageNum === 5 && secId === "leadership-achievements") return entry.handledATeam === "Yes" && ["teamSize", "leadershipRole"].includes(key);
-  if (stageNum === 7 && secId === "career-documents") return key === "latestResume";
   if (stageNum === 7 && secId === "future-career-preferences") return ["availabilityToJoin", "preferredLocation"].includes(key);
   return false;
 }
@@ -342,6 +352,8 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
   const [form, setForm] = useState({});
   const [attempted, setAttempted] = useState(false); // user pressed Save / Continue / Publish: show red on what is missing
   const [active, setActive] = useState(1);
+  const [docConsent, setDocConsent] = useState(() => { try { return localStorage.getItem("xp_doc_consent_v1") === "1"; } catch { return false; } });
+  const [consentTick, setConsentTick] = useState(false);
   const [busy, setBusy] = useState("");
   const [errors, setErrors] = useState([]);
   const [notice, setNotice] = useState("");
@@ -354,6 +366,8 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
   const [certSearch, setCertSearch] = useState("");
   const [selectedCertCode, setSelectedCertCode] = useState("CPC");
   const [editingCertIdx, setEditingCertIdx] = useState(null);
+  const [certErrors, setCertErrors] = useState({});
+  const [comboOther, setComboOther] = useState({});
   const [draftCert, setDraftCert] = useState({
     certificationCategory: "Medical Coding",
     certificationCode: "CPC",
@@ -388,7 +402,17 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
     if (!s1.email) s1.email = c.email || candidate?.email || "";
     s1.governmentIdType = "Aadhaar"; // only Aadhaar is accepted
     // older saves stored the notice period as text/number ("30 Days", "Immediate", "45"); map them to Yes/No + days
-    const cs = f[1]["current-career-status"];
+    const cs = f[3]["current-career-status"];
+    // career status used to live in Stage 1 - carry any earlier answers over to Stage 3
+    const oldCs = payload.stages?.[1]?.["current-career-status"];
+    if (oldCs && !Object.values(cs).some((v) => v !== "" && v != null)) Object.assign(cs, oldCs);
+    // older saves kept up to three cities in one box ("Bangalore, Hyderabad, Chennai") - split them into 1st / 2nd / 3rd preference
+    if (cs.preferredWorkLocation && /[,;/]/.test(cs.preferredWorkLocation) && !cs.preferredWorkLocation2 && !cs.preferredWorkLocation3) {
+      const parts = String(cs.preferredWorkLocation).split(/[,;/]/).map((x) => x.trim()).filter(Boolean);
+      cs.preferredWorkLocation = parts[0] || "";
+      cs.preferredWorkLocation2 = parts[1] || "";
+      cs.preferredWorkLocation3 = parts[2] || "";
+    }
     if (cs.noticePeriod && !["Yes", "No"].includes(cs.noticePeriod)) {
       const m = String(cs.noticePeriod).match(/\d+/);
       const days = /immediate/i.test(cs.noticePeriod) ? 0 : m ? Number(m[0]) : null;
@@ -466,7 +490,7 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
       }
     }
   });
-  const addEntry = (sec) => patch((d) => { d[sec.id].push({ ...blank(sec.fields), id: newId() }); });
+  const addEntry = (sec, group) => patch((d) => { const e = { ...blank(sec.fields), id: newId() }; if (group === "current") e.currentlyWorkingHere = "Yes"; if (group === "previous") e.currentlyWorkingHere = "No"; d[sec.id].push(e); });
   const removeEntry = (sec, idx) => patch((d) => { d[sec.id].splice(idx, 1); });
   // DigiLocker finished: the server saved the verified identity - pull it into the open form.
   async function onIdVerified() {
@@ -479,6 +503,12 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
         ["fullName", "dateOfBirth", "gender", "governmentIdType", "governmentIdNumber", "isGovtIdVerified", "maskedGovtId"].forEach((k) => {
           if (pc[k]) d["personal-contact"][k] = pc[k];
         });
+        // Make sure the verified values fit the form controls (date input = YYYY-MM-DD, fixed gender list)
+        const f1 = d["personal-contact"];
+        const m = String(f1.dateOfBirth || "").match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+        if (m) f1.dateOfBirth = `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+        const g = String(f1.gender || "").toLowerCase();
+        if (g) f1.gender = g.startsWith("m") ? "Male" : g.startsWith("f") ? "Female" : ["male", "female", "prefer not to say", "other"].includes(g) ? f1.gender : "Other";
         if (ud.aadhaarNumber && d["upload-your-documents"]) d["upload-your-documents"].aadhaarNumber = ud.aadhaarNumber;
       });
       setErrors([]);
@@ -598,7 +628,12 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
 
   const renderField = (sec, f, entry, idx) => {
     if (isHidden(active, sec.id, f.key, entry, form)) return null;
+    if (active === 1 && sec.id === "personal-contact" && ["governmentIdType", "governmentIdNumber", "idRegisteredMobile"].includes(f.key)) return null; // Aadhaar is entered above and verified by OTP - no repeated ID fields
     if (f.source === "system") return null; // server-owned (e.g. ID Verified) - never editable
+    if (active === 5 && sec.id === "performance-metrics" && f.key === "companyName") {
+      const cos = [...new Set((form[3]?.["current-previous-employment-entry"] || []).map((e) => e.companyName).filter(Boolean))];
+      f = { ...f, options: cos };
+    }
     const val = entry[f.key];
     const idLocked = active === 1 && sec.id === "personal-contact" && entry.isGovtIdVerified === "Yes" &&
       ["fullName", "dateOfBirth", "gender", "governmentIdType", "governmentIdNumber"].includes(f.key);
@@ -689,6 +724,43 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
           )}
         </div>
       );
+    } else if (f.type === "suggest") {
+      const lid = `dl-${fid}`;
+      input = (
+        <>
+          <input type="text" list={lid} {...common} placeholder={f.placeholder || ""} autoComplete="off" />
+          <datalist id={lid}>{(f.options || []).map((o) => <option key={o} value={o} />)}</datalist>
+        </>
+      );
+    } else if (f.type === "combo") {
+      const opts = f.options || [];
+      const cur = val ?? "";
+      const isOther = Boolean(comboOther[fid]) || (cur !== "" && !opts.includes(cur));
+      input = (
+        <>
+          <select
+            value={isOther ? "__other" : cur}
+            disabled={idLocked}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === "__other") {
+                setComboOther((p) => ({ ...p, [fid]: true }));
+                if (opts.includes(cur)) setVal(sec.id, f.key, "", idx);
+              } else {
+                setComboOther((p) => ({ ...p, [fid]: false }));
+                setVal(sec.id, f.key, v, idx);
+              }
+            }}
+          >
+            <option value="">Select</option>
+            {opts.map((o) => <option key={o} value={o}>{o}</option>)}
+            <option value="__other">Other (type your own)</option>
+          </select>
+          {isOther && (
+            <input type="text" style={{ marginTop: 6 }} placeholder={f.placeholder || "Type here"} value={cur} onChange={(e) => setVal(sec.id, f.key, e.target.value, idx)} />
+          )}
+        </>
+      );
     } else if (f.key === "employmentDuration") {
       const dur = clientExperience([entry]);
       input = (
@@ -707,7 +779,7 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
     }
     return (
       <div className={"xp-field" + (wide ? " full" : "") + (bad ? " err" : "")} key={f.key}>
-        <label>{(f.key === "lastWorkingDate" && entry.currentlyWorkingHere === "Yes") ? "Expected Last Working Date (optional)" : f.label}{(f.required || conditionallyRequired(active, sec.id, f.key, entry)) && <em> *</em>}</label>
+        <label>{(f.key === "lastWorkingDate" && entry.currentlyWorkingHere === "Yes") ? "Expected Last Working Date (optional)" : (f.key === "yearOfPassing" && entry.courseCompleted === "No") ? "Expected Year of Completion" : f.label}{(f.required || conditionallyRequired(active, sec.id, f.key, entry)) && <em> *</em>}</label>
         {input}
         {bad && <div className="xp-err-msg">{f.type === "file" ? "Please upload this file" : f.type === "select" ? "Please select an option" : "This field is required"}</div>}
         {f.source && (
@@ -753,7 +825,11 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
 
     const handleCertSelect = (code) => {
       setSelectedCertCode(code);
-      if (!code || code === "OTHER") {
+      if (!code) {
+        setDraftCert((prev) => ({ ...prev, certificationCode: "", certificationName: "" }));
+        return;
+      }
+      if (code === "OTHER") {
         setDraftCert((prev) => ({
           ...prev,
           certificationCode: "OTHER",
@@ -789,11 +865,20 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
       }
     };
 
+    const cErr = (k) => Boolean(certErrors[k]) && !String(draftCert[k] || "").trim();
+    const redBox = (k) => (cErr(k) ? { border: "1.5px solid #DC2626", background: "#FEF2F2" } : undefined);
+    const redMsg = (k, label) => (cErr(k) ? <div style={{ color: "#DC2626", fontSize: 12, fontWeight: 600, marginTop: 4 }}>⚠ {label} is required</div> : null);
+
     const handleSaveCert = () => {
-      if (!draftCert.certificationName || !draftCert.certificationName.trim()) {
-        setErrors(["Please select or enter a certification name."]);
+      const labels = { certificationName: "Certification Name", certificationCategory: "Certification Category", issuingOrganization: "Issuing Organization", certificationStatus: "Certification Status" };
+      const miss = {};
+      Object.keys(labels).forEach((k) => { if (!String(draftCert[k] || "").trim()) miss[k] = true; });
+      if (Object.keys(miss).length) {
+        setCertErrors(miss);
+        setErrors([`Please fill the highlighted fields: ${Object.keys(miss).map((k) => labels[k]).join(", ")}.`]);
         return;
       }
+      setCertErrors({});
       setErrors([]);
       patch((d) => {
         const arr = d[sec.id] || [];
@@ -867,6 +952,9 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
       <div className="xp-card" key={sec.id}>
         <h4>{sec.title}</h4>
         <p className="xp-desc">{sec.desc}</p>
+        <div style={{ margin: "0 0 16px", padding: "12px 14px", background: "#EFF6FF", border: "1.5px solid #BFDBFE", borderRadius: 10, fontSize: 13.5, lineHeight: 1.6, color: "#1E3A8A" }}>
+          <b>Certifications are optional.</b> If you are not certified you can skip this stage and press <b>Save &amp; Continue</b>. Certified candidates (CPC, CCS, CRC and others) get <b>higher visibility</b> with hiring companies; non-certified profiles get lower visibility.
+        </div>
 
         {/* Step 1: Body Pills */}
         <div style={{ marginBottom: 16 }}>
@@ -908,7 +996,9 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
             className="xp-input"
             value={selectedCertCode}
             onChange={(e) => handleCertSelect(e.target.value)}
+            style={redBox("certificationName")}
           >
+            <option value="">Select a certification…</option>
             {filteredCerts.length === 0 && (
               <option value="" disabled>No certifications match "{certSearch}"</option>
             )}
@@ -919,6 +1009,7 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
             ))}
             <option value="OTHER">+ Other / Custom Certification</option>
           </select>
+          {selectedCertCode !== "OTHER" && redMsg("certificationName", "Certification")}
         </div>
 
         {/* Step 3: Credential Details Form */}
@@ -945,6 +1036,7 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
                   type="text"
                   className="xp-input"
                   placeholder="Enter full certification name"
+                  style={redBox("certificationName")}
                   value={draftCert.certificationName}
                   onChange={(e) => setDraftCert((p) => ({ ...p, certificationName: e.target.value }))}
                 />
@@ -955,8 +1047,10 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
               <select
                 className="xp-input"
                 value={draftCert.certificationCategory}
+                style={redBox("certificationCategory")}
                 onChange={(e) => setDraftCert((p) => ({ ...p, certificationCategory: e.target.value }))}
               >
+                <option value="">Select</option>
                 <option value="Medical Coding">Medical Coding</option>
                 <option value="Specialty Coding">Specialty Coding</option>
                 <option value="Medical Billing">Medical Billing</option>
@@ -964,14 +1058,17 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
                 <option value="Leadership">Leadership</option>
                 <option value="Other">Other</option>
               </select>
+              {redMsg("certificationCategory", "Category")}
             </div>
             <div className="xp-field">
               <label>Issuing Organization <em>*</em></label>
               <select
                 className="xp-input"
                 value={draftCert.issuingOrganization}
+                style={redBox("issuingOrganization")}
                 onChange={(e) => setDraftCert((p) => ({ ...p, issuingOrganization: e.target.value }))}
               >
+                <option value="">Select</option>
                 <option value="AAPC">AAPC</option>
                 <option value="AHIMA">AHIMA</option>
                 <option value="HFMA">HFMA</option>
@@ -984,6 +1081,7 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
                 <option value="WellSky">WellSky</option>
                 <option value="Other">Other</option>
               </select>
+              {redMsg("issuingOrganization", "Issuing Organization")}
             </div>
             <div className="xp-field">
               <label>Certification ID / Member ID</label>
@@ -1000,12 +1098,15 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
               <select
                 className="xp-input"
                 value={draftCert.certificationStatus}
+                style={redBox("certificationStatus")}
                 onChange={(e) => setDraftCert((p) => ({ ...p, certificationStatus: e.target.value }))}
               >
+                <option value="">Select</option>
                 <option value="Active">Active</option>
                 <option value="In Progress">In Progress</option>
                 <option value="Expired">Expired</option>
               </select>
+              {redMsg("certificationStatus", "Status")}
             </div>
             <div className="xp-field">
               <label>Issue Date</label>
@@ -1085,6 +1186,19 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
             </div>
           </div>
 
+          {(() => {
+            const ceuSec = stage.sections.find((x) => x.id === "ceu-continuing-education");
+            if (!ceuSec) return null;
+            const ceuData = data["ceu-continuing-education"] || {};
+            return (
+              <div style={{ margin: "4px 0 16px", padding: "14px 16px", background: "#FFFBEB", border: "1.5px solid #FDE68A", borderRadius: 12 }}>
+                <div style={{ fontWeight: 800, fontSize: 13.5, color: "#92400E" }}>CEU / Continuing Education <span style={{ fontWeight: 600, color: "#B45309" }}>(optional)</span></div>
+                <div style={{ fontSize: 12, color: "#78716C", margin: "2px 0 10px" }}>Optional professional maintenance tracking for your credential.</div>
+                <div className="xp-grid">{ceuSec.fields.map((f) => renderField(ceuSec, f, ceuData, undefined))}</div>
+              </div>
+            );
+          })()}
+
           <div style={{ display: "flex", gap: 10 }}>
             <button
               type="button"
@@ -1142,22 +1256,15 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
                         </a>
                       )}
                     </div>
-                    <div className="meta">
-                      {item.issuingOrganization} · {item.certificationCategory || "RCM"}
-                      {item.issueDate ? ` · Issued ${item.issueDate}` : ""}
-                      {item.noExpiry === "Yes" ? " · Lifetime Validity" : item.expiryDate ? ` · Expiry ${item.expiryDate}` : ""}
+                    <div className="meta" style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+                      {item.issuingOrganization && <span className="s3-chip org">{item.issuingOrganization}</span>}
+                      <span className="s3-chip cat">{item.certificationCategory || "RCM"}</span>
+                      {item.issueDate && <span className="s3-chip date">Issued {item.issueDate}</span>}
+                      {item.noExpiry === "Yes" ? <span className="s3-chip ok">Lifetime Validity</span> : item.expiryDate ? <span className="s3-chip date">Expiry {item.expiryDate}</span> : null}
                     </div>
                   </div>
 
-                  <div className="s3-cert-mini-id">
-                    ID {item.certificationId ? (item.certificationId.length > 4 ? `****${item.certificationId.slice(-4)}` : item.certificationId) : "—"}
-                  </div>
-
-                  <div className={`s3-cert-mini-badge ${item.certificationStatus === "Active" ? "green" : item.certificationStatus === "In Progress" ? "blue" : "red"}`}>
-                    <i className="fa-solid fa-circle" style={{ fontSize: 7 }} /> {item.certificationStatus || "Active"}
-                  </div>
-
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                  <div className="s3-cert-actions">
                     {item.certificateUpload?.url && (
                       <button
                         type="button"
@@ -1174,16 +1281,25 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
                       className="s3-cert-edit-btn"
                       title="Edit this credential"
                     >
-                      ✎ Edit
+                      <i className="fa-solid fa-pen" /> Edit
                     </button>
                     <button
                       type="button"
                       onClick={() => removeEntry(sec, idx)}
-                      style={{ background: "transparent", border: "none", color: "#EF4444", cursor: "pointer", fontWeight: 700, padding: "0 6px", fontSize: 18 }}
-                      title="Remove credential"
+                      className="s3-cert-edit-btn s3-cert-remove-btn"
+                      title="Delete credential"
                     >
-                      ✕
+                      <i className="fa-solid fa-trash" /> Delete
                     </button>
+                  </div>
+                  <div className="s3-cert-foot">
+                  <div className="s3-cert-mini-id">
+                    Certification ID: {item.certificationId ? (item.certificationId.length > 4 ? `****${item.certificationId.slice(-4)}` : item.certificationId) : "—"}
+                  </div>
+
+                  <div className={`s3-cert-mini-badge ${item.certificationStatus === "Active" ? "green" : item.certificationStatus === "In Progress" ? "blue" : "red"}`}>
+                    <i className="fa-solid fa-circle" style={{ fontSize: 7 }} /> {item.certificationStatus || "Active"}
+                  </div>
                   </div>
                 </div>
               ))}
@@ -1196,11 +1312,14 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
               className="xp-btn xp-soft"
               onClick={() => {
                 setEditingCertIdx(null);
+                setErrors([]);
+                setCertErrors({});
+                setCertSearch("");
                 setDraftCert({
-                  certificationCategory: "Medical Coding",
-                  certificationCode: "CPC",
-                  certificationName: "Certified Professional Coder",
-                  issuingOrganization: "AAPC",
+                  certificationCategory: "",
+                  certificationCode: "",
+                  certificationName: "",
+                  issuingOrganization: "",
                   certificationId: "",
                   issueDate: "",
                   expiryDate: "",
@@ -1210,7 +1329,8 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
                   certificateUpload: null,
                   credentialUrl: "",
                 });
-                setSelectedCertCode("CPC");
+                setSelectedCertCode("");
+                setTimeout(() => { topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); try { window.scrollTo({ top: 0, behavior: "smooth" }); document.querySelectorAll(".xp-main").forEach((el) => { el.scrollTop = 0; }); } catch { /* ignore */ } }, 80);
               }}
               style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
             >
@@ -1222,8 +1342,112 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
     );
   };
 
+  const renderResumeBuilder = () => {
+    const cdSec = stage.sections.find((x) => x.id === "career-documents");
+    const rb = data["resume-builder"] || {};
+    const cd = data["career-documents"] || {};
+    const mode = rb.resumeMode === "Create a new resume" ? "create" : "upload";
+    const f1 = form[1]?.["personal-contact"] || {};
+    const f1c = form[3]?.["current-career-status"] || {};
+    const f2 = form[2]?.education || {};
+    const f3 = form[3]?.["current-previous-employment-entry"] || [];
+    const tech = form[4]?.["technical-expertise"] || {};
+    const certs = form[6]?.["add-certification"] || [];
+    const cur = f3.find((e) => e.currentlyWorkingHere === "Yes") || f3[0] || {};
+    const prev = f3.filter((e) => e !== cur);
+    const mappedCandidate = {
+      ...(candidate || {}),
+      stage1: {
+        fullName: f1.fullName, mobile: f1.mobileNumber, email: f1.email, experience: "Experienced",
+        currentRole: f1c.currentDesignation || cur.designation || "",
+        city: f1c.preferredWorkLocation || cur.companyLocation || "", state: "",
+        degree: f2.degreeCourse || f2.highestQualification, collegeName: f2.collegeName, graduationYear: f2.yearOfPassing,
+      },
+      stage2: {
+        domain: tech.primaryDomain || cur.domainProcessHandled || "Medical Coding",
+        jobTitle: cur.designation || f1c.currentDesignation || "",
+        currentCompany: cur.companyName || f1c.currentCompany || "",
+        workStartDate: cur.dateOfJoining || "", workEndDate: cur.lastWorkingDate || "",
+        employmentStatus: cur.currentlyWorkingHere === "Yes" ? "working" : "relieved",
+        totalExperience: clientExperience(f3) !== "—" ? clientExperience(f3) : "",
+        rolesResponsibilities: [cur.rolesResponsibilities, ...prev.map((e) => `Previously ${e.designation || "role"} at ${e.companyName || "company"}${e.employmentDuration ? ` (${e.employmentDuration})` : ""}`)].filter(Boolean).join("\n"),
+        projectDetails: [tech.specialtyHandled, tech.clientPayerProviderExposure, tech.softwareToolsUsed].filter(Boolean).join(" · "),
+        noticePeriod: f1c.noticePeriodDays ? `${f1c.noticePeriodDays} days` : "",
+      },
+      stage3: certs.length
+        ? { certifications: certs.map((c) => ({ code: c.certificationCode, name: c.certificationName, body: c.issuingOrganization, memberId: c.certificationId || "", issueDate: c.issueDate, expiryDate: c.expiryDate })) }
+        : { nonCertified: true },
+    };
+    const existingResume = {
+      template: rb.resumeTemplate || undefined,
+      themeSettings: { accentColor: rb.resumeAccent || undefined, headerBg: rb.resumeHeaderBg || undefined, fontFamily: rb.resumeFont || undefined, density: rb.resumeDensity || undefined },
+      objective: rb.resumeObjective || undefined,
+      professionalSummary: rb.resumeSummary || "",
+    };
+    const setMode = (m) => setVal("resume-builder", "resumeMode", m);
+    const optBox = (active_, title, sub, onClick) => (
+      <div onClick={onClick} style={{ flex: "1 1 240px", cursor: "pointer", padding: "14px 16px", borderRadius: 12, border: active_ ? "2px solid #F5B301" : "1.5px solid #CBD5E1", background: active_ ? "#FFFBEB" : "#fff" }}>
+        <div style={{ fontWeight: 800, color: "var(--navy, #0A2540)" }}>{active_ ? "● " : "○ "}{title}</div>
+        <div style={{ fontSize: 12.5, color: "#64748B", marginTop: 4 }}>{sub}</div>
+      </div>
+    );
+    return (
+      <div className="xp-card" key="resume-builder">
+        <h4>Resume</h4>
+        <p className="xp-desc">Upload your existing resume, or create a new one from the details you entered in the earlier stages.</p>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+          {optBox(mode === "upload", "Upload existing resume", "Attach the resume you already have (PDF / DOC / image).", () => setMode("Upload existing resume"))}
+          {optBox(mode === "create", "Create a new resume", "We build it from your Stage 1-6 details. Preview, edit and save.", () => setMode("Create a new resume"))}
+        </div>
+        {mode === "upload" && (() => {
+          const s1Resume = form[1]?.["upload-your-documents"]?.documents?.updatedResume || cd.latestResume;
+          return s1Resume?.url ? (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", padding: "12px 14px", background: "#F0FDF4", border: "1.5px solid #86EFAC", borderRadius: 10 }}>
+              <span><b>Your uploaded resume</b> <span className="xp-note">· from Stage 1</span><br /><span style={{ fontSize: 13 }}>{s1Resume.name || "Resume file"}</span></span>
+              <span style={{ display: "flex", gap: 8 }}>
+                <a href={s1Resume.url} target="_blank" rel="noreferrer" className="xp-btn xp-ghost" style={{ padding: "6px 14px", fontSize: 12.5, fontWeight: 700, textDecoration: "none" }}>👁 View</a>
+                <button type="button" className="xp-btn xp-ghost" style={{ padding: "6px 14px", fontSize: 12.5 }} onClick={() => goto(1)}>Replace in Stage 1</button>
+              </span>
+            </div>
+          ) : (
+            <div style={{ padding: "12px 14px", background: "#FFFBEB", border: "1.5px solid #FDE68A", borderRadius: 10 }}>
+              <div style={{ fontSize: 13.5 }}>Documents are uploaded only once, in Stage 1. Upload your updated resume there, or choose <b>Create a new resume</b> above.</div>
+              <button type="button" className="xp-btn xp-primary" style={{ marginTop: 10 }} onClick={() => goto(1)}>Go to Stage 1 to upload</button>
+            </div>
+          );
+        })()}
+        {mode === "create" && (
+          <Stage7Resume
+            embedded
+            stage={{ num: 7 }}
+            candidate={mappedCandidate}
+            existingData={existingResume}
+            onNavigateStage={(n) => goto(n <= 1 ? 1 : n === 2 ? 2 : n === 3 ? 6 : n === 4 ? 4 : n === 5 ? 5 : 6)}
+            saveHandler={async (payload) => {
+              const t = payload.themeSettings || {};
+              setVal("resume-builder", "resumeTemplate", String(payload.template || ""));
+              setVal("resume-builder", "resumeAccent", String(t.accentColor || ""));
+              setVal("resume-builder", "resumeHeaderBg", String(t.headerBg || ""));
+              setVal("resume-builder", "resumeFont", String(t.fontFamily || ""));
+              setVal("resume-builder", "resumeDensity", String(t.density || ""));
+              setVal("resume-builder", "resumeObjective", String(payload.objective || ""));
+              setVal("resume-builder", "resumeSummary", String(payload.professionalSummary || ""));
+              setVal("resume-builder", "resumeBuilt", "Yes");
+              setNotice("Resume saved. Press Save & Continue to store this stage - it is published to your Talentera profile with your Career Passport.");
+            }}
+          />
+        )}
+      </div>
+    );
+  };
+
   const renderSection = (sec) => {
-    if (active === 2 && sec.id === "training-academy-history" && data["training-applicability"]?.attendedAcademyTraining === "Not Applicable") return null;
+    if (active === 7 && sec.id === "career-documents") return null;
+    if (active === 5 && sec.id === "performance-metrics" && ["Not Available", "Skip - prefer not to share"].includes(data["performance-share"]?.performanceDetailsStatus)) return null;
+    if (active === 3 && sec.kind === "docs") return null; // documents are uploaded once, in Stage 1
+    if (active === 7 && sec.id === "resume-builder") return renderResumeBuilder();
+    if (active === 6 && sec.id === "ceu-continuing-education") return null; // shown inside Credential Details
+    if (active === 2 && sec.id === "training-academy-history" && data["training-applicability"]?.attendedAcademyTraining && data["training-applicability"]?.attendedAcademyTraining !== "Yes") return null;
     if (sec.id === "add-certification") {
       return renderStage6Certifications(sec);
     }
@@ -1677,9 +1901,11 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
       );
     }
     // fields
-    const body = sec.repeatable ? (
+    const makeBody = (group) => sec.repeatable ? (
       <>
         {(data[sec.id] || []).map((entry, idx) => {
+          if (group === "current" && entry.currentlyWorkingHere !== "Yes") return null;
+          if (group === "previous" && entry.currentlyWorkingHere === "Yes") return null;
           const entryDur = clientExperience([entry]);
           return (
             <div className="xp-entry" key={entry.id || idx}>
@@ -1698,7 +1924,7 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                   <span style={{ fontWeight: 800, fontSize: 14, color: "var(--navy, #0A2540)" }}>
-                    {active === 3 ? `🏢 Company #${idx + 1}` : sec.title.includes("Cert") ? `📜 Certification #${idx + 1}` : `Entry #${idx + 1}`}
+                    {active === 3 ? `🏢 Company #${idx + 1}` : active === 5 ? `📊 Performance Record #${idx + 1}` : sec.title.includes("Cert") ? `📜 Certification #${idx + 1}` : `Entry #${idx + 1}`}
                   </span>
                   {entry.companyName && (
                     <span style={{ fontSize: 13, fontWeight: 700, color: "#2563EB" }}>
@@ -1717,10 +1943,10 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
                   )}
                 </div>
                 <button type="button" className="xp-btn xp-danger" onClick={() => removeEntry(sec, idx)}>
-                  {active === 3 ? "Remove Company" : "Remove"}
+                  {active === 3 ? "Remove Company" : active === 5 ? "Remove Record" : "Remove"}
                 </button>
               </div>
-              <div className="xp-grid">{sec.fields.map((f) => renderField(sec, f, entry, idx))}</div>
+              <div className="xp-grid">{sec.fields.filter((f) => !(group && f.key === "currentlyWorkingHere")).map((f) => renderField(sec, f, entry, idx))}</div>
             </div>
           );
         })}
@@ -1728,7 +1954,7 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
           <button
             type="button"
             className="xp-btn xp-primary"
-            onClick={() => addEntry(sec)}
+            onClick={() => addEntry(sec, group)}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -1739,19 +1965,41 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
             }}
           >
             <i className="fa-solid fa-circle-plus" style={{ fontSize: 15 }} />
-            {active === 3 ? "Add Company" : active === 6 ? "Add Certification" : "+ Add Entry"}
+            {group === "current" ? "Add Current Employment" : group === "previous" ? "Add Previous Employment" : active === 5 ? "Add Another Company / Project" : active === 3 ? "Add Company" : active === 6 ? "Add Certification" : "+ Add Entry"}
           </button>
-          {active === 3 && (
+          {active === 3 && !group && (
             <span style={{ fontSize: 12, color: "#64748B" }}>
               Click <b>(+) Add Company</b> to add multiple organizations to your career history.
             </span>
           )}
         </div>
-        {active === 3 && !employment.length && <p className={invalid.has(`rep:${sec.id}`) ? "xp-err-msg xp-err-card" : "xp-note"} style={invalid.has(`rep:${sec.id}`) ? { fontSize: 13 } : undefined}>Click &ldquo;+ Add Company&rdquo; above to record your employment history.</p>}
+        {active === 3 && !group && !employment.length && <p className={invalid.has(`rep:${sec.id}`) ? "xp-err-msg xp-err-card" : "xp-note"} style={invalid.has(`rep:${sec.id}`) ? { fontSize: 13 } : undefined}>Click &ldquo;+ Add Company&rdquo; above to record your employment history.</p>}
       </>
     ) : (
-      <div className="xp-grid">{sec.fields.map((f) => renderField(sec, f, data[sec.id] || {}, undefined))}</div>
+      <div className="xp-grid">{sec.fields.map((f, i) => (
+        <React.Fragment key={f.key}>
+          {f.group && f.group !== sec.fields[i - 1]?.group && (
+            <div style={{ gridColumn: "1 / -1", marginTop: i ? 10 : 0, paddingBottom: 6, borderBottom: "2px solid #F5B301", fontWeight: 800, fontSize: 14, color: "var(--navy, #0A2540)" }}>{f.group}</div>
+          )}
+          {renderField(sec, f, data[sec.id] || {}, undefined)}
+        </React.Fragment>
+      ))}</div>
     );
+    if (active === 3 && sec.id === "current-previous-employment-entry") {
+      return (
+        <React.Fragment key={sec.id}>
+          <div className="xp-card">
+            <h4>Current Employment</h4><p className="xp-desc">Your present employer (or the one you are serving notice with). Duration is calculated automatically from your dates.</p>
+            {makeBody("current")}
+          </div>
+          <div className="xp-card">
+            <h4>Previous Employment</h4><p className="xp-desc">Add each earlier company one at a time. Duration is calculated automatically from your dates.</p>
+            {makeBody("previous")}
+          </div>
+        </React.Fragment>
+      );
+    }
+    const body = makeBody();
     return (
       <div className="xp-card" key={sec.id}>
         <h4>{sec.title}</h4><p className="xp-desc">{sec.desc}{sec.repeatable && active === 3 ? " Duration is calculated automatically from your dates." : ""}</p>
@@ -1769,6 +2017,7 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
     );
   };
 
+  const docGate = active === 1 && !docConsent;
   return (
     <div className="xp-shell">
       <aside className="xp-side">
@@ -1790,15 +2039,27 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
 
       <main className="xp-main" ref={topRef}>
         <div className="xp-hero">
-          <div><h2>Stage {stage.num} — {stage.name}</h2><p>{stage.purpose}</p></div>
+          <div><h2>Stage {stage.num} — {stage.name}</h2><p>{stage.purpose}</p>
+            {stage.num === 1 && (
+              <div style={{ marginTop: 14, fontSize: 14, lineHeight: 1.65, background: "#FFFFFF", color: "#0F172A", borderRadius: 12, borderLeft: "5px solid #F5B301", padding: "14px 16px", boxShadow: "0 4px 14px rgba(0,0,0,.25)" }}>
+                <div><b style={{ color: "#B45309" }}>Why we need your documents:</b> Aadhaar and PAN confirm your identity, and your certificates and employment proofs back up your Career Passport, so employers can trust your verified profile.</div>
+                <div style={{ marginTop: 8 }}><b style={{ color: "#B45309" }}>How your information is handled:</b> ID numbers are stored masked (last 4 characters only), used only for verification, shown to companies only after you publish your passport, and you can ask us to correct or delete your data anytime.</div>
+                {docGate ? (
+                  <div style={{ marginTop: 12, background: "#FEF3C7", border: "1.5px solid #F5B301", borderRadius: 10, padding: "12px 14px" }}>
+                    <label style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer" }}>
+                      <input type="checkbox" checked={consentTick} onChange={(e) => setConsentTick(e.target.checked)} style={{ marginTop: 3 }} />
+                      <span>I have read and understood the document submission requirements and privacy policy.</span>
+                    </label>
+                    <button type="button" className="xp-btn" style={{ marginTop: 10 }} disabled={!consentTick} onClick={() => { try { localStorage.setItem("xp_doc_consent_v1", "1"); } catch { /* ignore */ } setDocConsent(true); }}>Confirm &amp; show document fields</button>
+                    <div style={{ marginTop: 6, fontSize: 12, color: "#92400E" }}>The fields below stay locked until you tick the box and confirm.</div>
+                  </div>
+                ) : (
+                  <div style={{ marginTop: 10, fontSize: 13, fontWeight: 700, color: "#15803D" }}>✓ You confirmed the document submission requirements and privacy policy.</div>
+                )}
+              </div>
+            )}
+          </div>
           <div className="xp-badge">{stage.num} of {STAGE_COUNT}</div>
-        </div>
-        <div className="xp-tabs">
-          {SCHEMA.map((s) => (
-            <div key={s.num} className={"xp-tab" + (active === s.num ? " active" : "") + (completed.includes(s.num) ? " done" : "")} onClick={() => goto(s.num)}>
-              <b>{completed.includes(s.num) ? "✓" : s.num}</b>{TAB_LABELS[s.num - 1]}
-            </div>
-          ))}
         </div>
 
         {errors.length > 0 && (
@@ -1809,9 +2070,11 @@ export default function ExperiencedPassportWizard({ candidate, initialStage, onC
         {notice && <div className="xp-alert xp-ok">{notice}</div>}
 
         {active === 5 && domains.length > 0 && <p className="xp-note" style={{ marginTop: -8 }}>Metrics are shown for: {domains.join(", ")}.</p>}
-        {stage.sections.map(renderSection)}
+        <div style={docGate ? { opacity: 0.45, pointerEvents: "none", userSelect: "none", filter: "grayscale(.6)" } : undefined} aria-disabled={docGate ? "true" : undefined} inert={docGate ? "" : undefined}>
+          {stage.sections.map(renderSection)}
+        </div>
 
-        <div className="xp-foot">
+        <div className="xp-foot" style={docGate ? { opacity: 0.45, pointerEvents: "none" } : undefined}>
           <button type="button" className="xp-btn xp-ghost" disabled={active === 1} onClick={() => goto(active - 1)}>← Previous</button>
           <div className="r">
             {active < STAGE_COUNT && <button type="button" className="xp-btn xp-ghost" disabled={!!busy} onClick={() => save(true)}>{busy === "draft" ? "Saving…" : "Save Draft"}</button>}

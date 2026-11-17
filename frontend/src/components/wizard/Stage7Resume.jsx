@@ -104,7 +104,7 @@ const RESUME_TEMPLATES = [
   },
 ];
 
-export default function Stage7Resume({ stage, existingData, candidate, onSaved, onNavigateStage, onGoToDashboard }) {
+export default function Stage7Resume({ stage, existingData, candidate, onSaved, onNavigateStage, onGoToDashboard, embedded = false, saveHandler = null }) {
   const toast = useToast();
   const resumePrintRef = useRef(null);
 
@@ -1355,6 +1355,11 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
         isDraft: !advanceToStage8,
       };
 
+      if (saveHandler) {
+        await saveHandler(payload);
+        toast("Resume saved! It will be published with your Career Passport.", "✓");
+        return;
+      }
       const res = await api.put("/candidate/stage/7", payload);
       toast(advanceToStage8 ? "Resume saved! Scroll down to go live." : "Resume theme & content saved successfully!", "✓");
 
@@ -2715,14 +2720,14 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
               <button type="button" onClick={() => handleSaveAndAdvance(true)} disabled={saving} className="s7-action-btn">
                 {saving ? "Saving..." : "Save Resume"}
               </button>
-              <button type="button" onClick={handleSkipStage7} disabled={saving || skipping7} className="s7-link-btn" title="Skip the resume for now. You can come back and complete it anytime.">
+              {!embedded && <button type="button" onClick={handleSkipStage7} disabled={saving || skipping7} className="s7-link-btn" title="Skip the resume for now. You can come back and complete it anytime.">
                 {skipping7 ? "Skipping..." : "Skip for now & fill later"}
-              </button>
+              </button>}
             </div>
           </div>
 
           {/* GO LIVE · DPDP CONSENT + CAREER PASSPORT ACTIVATION */}
-          <div className="s7-golive-section">
+          <div className="s7-golive-section" style={embedded ? { display: "none" } : undefined}>
             <div className="s7-golive-section-header">
               <div className="s7-golive-section-num"><i className="fa-solid fa-rocket" /></div>
               <div className="s7-golive-section-title">Go live · your explicit permission to activate</div>

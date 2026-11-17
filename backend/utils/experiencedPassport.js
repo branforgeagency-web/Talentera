@@ -107,7 +107,8 @@ function normalizeStage(n, body, uploads = []) {
         .slice(0, 40);
     }
   }
-  if (n === 2 && out["training-applicability"]?.attendedAcademyTraining === "Not Applicable") out["training-academy-history"] = [];
+  if (n === 5 && ["Not Available", "Skip - prefer not to share"].includes(out["performance-share"]?.performanceDetailsStatus)) out["performance-metrics"] = [];
+  if (n === 2 && out["training-applicability"]?.attendedAcademyTraining && out["training-applicability"].attendedAcademyTraining !== "Yes") out["training-academy-history"] = [];
   return out;
 }
 
@@ -178,9 +179,7 @@ function validateStage(n, data, uploads = []) {
 
   if (n === 1) {
     const a = data["personal-contact"] || {};
-    const c = data["current-career-status"] || {};
     req(a, fieldSections(1)[0].fields, "");
-    req(c, fieldSections(1)[1].fields, "");
     const dsec = stageDef(1).sections.find((x) => x.kind === "docslots");
     const du = data[dsec.id] || {};
     if (!du.aadhaarNumber) errors.push("Aadhaar Card Number is required.");
@@ -188,8 +187,6 @@ function validateStage(n, data, uploads = []) {
       const v = validateAadhaarNumber(du.aadhaarNumber);
       if (!v.valid) errors.push(v.error);
     }
-    if (!du.panNumber) errors.push("PAN Number is required.");
-    else if (!MASKED_PAN.test(du.panNumber) && !PAN_RE.test(du.panNumber)) errors.push("Enter a valid PAN number (e.g., ABCDE1234F).");
     for (const slot of dsec.slots) {
       if (slot.required && !du.documents?.[slot.key] && !(slot.naKey && du[slot.naKey] === "Yes")) errors.push(`Upload your ${slot.label}.`);
     }
@@ -210,6 +207,29 @@ function validateStage(n, data, uploads = []) {
       if (!dob || dob > today) errors.push("Date of birth is invalid.");
       else if (monthsBetween(dob, today) < 18 * 12) errors.push("Candidates must be at least 18 years old.");
     }
+  }
+
+  if (n === 2) {
+    const e = data.education || {};
+    req(e, fieldSections(2)[0].fields, "");
+    num(e.yearOfPassing, "Year of Completion", 1960, e.courseCompleted === "No" ? today.getFullYear() + 8 : today.getFullYear() + 1);
+    num(e.yearOfJoining, "Year of Joining", 1960, today.getFullYear() + 1);
+    if (e.yearOfJoining && e.yearOfPassing && Number(e.yearOfPassing) < Number(e.yearOfJoining)) errors.push("Year of Completion cannot be before the Year of Joining.");
+    if (e.courseCompleted === "Yes" && e.yearOfPassing && Number(e.yearOfPassing) > today.getFullYear()) errors.push("Year of Completion is in the future - choose Course Completed = No, or correct the year.");
+    if (data["training-applicability"]?.attendedAcademyTraining === "Yes" && !(data["training-academy-history"] || []).length)
+      errors.push("Add your academy / training details, or choose another option.");
+    (data["training-academy-history"] || []).forEach((t, i) => {
+      const s = parseDate(t.courseStartDate);
+      const f = parseDate(t.courseCompletionDate);
+      if (s && f && f < s) errors.push(`Training #${i + 1}: completion date is before the start date.`);
+      if (!t.academyTrainingProvider && !t.courseName) errors.push(`Training #${i + 1}: add the provider or course name, or remove the entry.`);
+    });
+  }
+
+  if (n === 3) {
+    const c = data["current-career-status"] || {};
+    const csSec = fieldSections(3).find((x) => x.id === "current-career-status");
+    if (csSec) req(c, csSec.fields, "");
     if (["Currently Employed", "Serving Notice Period"].includes(c.currentEmploymentStatus)) {
       if (!c.currentCompany) errors.push("Current Company is required while employed.");
       if (!c.currentDesignation) errors.push("Current Designation is required while employed.");
@@ -220,29 +240,12 @@ function validateStage(n, data, uploads = []) {
         else if (!Number.isInteger(days) || days < 1 || days > 365) errors.push("Notice period must be a whole number of days between 1 and 365.");
       }
     }
-  }
-
-  if (n === 2) {
-    const e = data.education || {};
-    req(e, fieldSections(2)[0].fields, "");
-    num(e.yearOfPassing, "Year of Passing", 1960, today.getFullYear() + 1);
-    if (data["training-applicability"]?.attendedAcademyTraining === "Yes" && !(data["training-academy-history"] || []).length)
-      errors.push("Add your academy / training details, or choose Not Applicable.");
-    (data["training-academy-history"] || []).forEach((t, i) => {
-      const s = parseDate(t.courseStartDate);
-      const f = parseDate(t.courseCompletionDate);
-      if (s && f && f < s) errors.push(`Training #${i + 1}: completion date is before the start date.`);
-      if (!t.academyTrainingProvider && !t.courseName) errors.push(`Training #${i + 1}: add the provider or course name, or remove the entry.`);
-    });
-  }
-
-  if (n === 3) {
     const list = data["current-previous-employment-entry"] || [];
     if (!list.length) errors.push("Add at least one employment entry.");
     let currentCount = 0;
     list.forEach((e, i) => {
       const L = `Employment #${i + 1}: `;
-      req(e, fieldSections(3)[0].fields, L);
+      req(e, fieldSections(3).find((x) => x.id === "current-previous-employment-entry").fields, L);
       const s = parseDate(e.dateOfJoining);
       if (e.dateOfJoining && (!s || s > today)) errors.push(`${L}Date of Joining is invalid or in the future.`);
       if (e.currentlyWorkingHere === "Yes") {
@@ -270,12 +273,15 @@ function validateStage(n, data, uploads = []) {
     const t = data["technical-expertise"] || {};
     req(t, fieldSections(4)[0].fields, "");
     num(t.yearsInCurrentDomain, "Years in Current Domain", 0, 60);
+    num(t.secondaryYearsInDomain, "Years in Secondary Domain", 0, 60);
   }
 
   if (n === 5) {
-    const p = data["performance-metrics"] || {};
+    const pl = Array.isArray(data["performance-metrics"]) ? data["performance-metrics"] : (data["performance-metrics"] ? [data["performance-metrics"]] : []);
     const l = data["leadership-achievements"] || {};
-    ["qualityScorePct", "accuracyPct", "auditScorePct", "errorRatePct"].forEach((k) => num(p[k], fieldLabel(5, k), 0, 100));
+    if (!["Not Available", "Skip - prefer not to share"].includes((data["performance-share"] || {}).performanceDetailsStatus)) {
+      pl.forEach((p, i) => ["qualityScorePct", "accuracyPct", "auditScorePct", "errorRatePct"].forEach((k) => num(p[k], `Performance #${i + 1}: ${fieldLabel(5, k)}`, 0, 100)));
+    }
     if (l.handledATeam === "Yes") {
       if (!l.teamSize) errors.push("Team Size is required when you have handled a team.");
       if (!l.leadershipRole) errors.push("Leadership Role is required when you have handled a team.");
@@ -304,7 +310,8 @@ function validateStage(n, data, uploads = []) {
 
   if (n === 7) {
     const d = data["career-documents"] || {};
-    if (!d.latestResume) errors.push("Upload your latest resume.");
+    const rb = data["resume-builder"] || {};
+    if (!d.latestResume && rb.resumeBuilt !== "Yes") errors.push("Upload your existing resume or create and save a new resume.");
     const p = data["future-career-preferences"] || {};
     if (!p.availabilityToJoin) errors.push("Availability to Join is required.");
     if (!p.preferredLocation) errors.push("Preferred Location is required.");
@@ -397,11 +404,11 @@ function calculatePassportScore(candidate) {
     const exp = calcExperience(st[3]?.["current-previous-employment-entry"] || []);
     const tier = exp.totalYears >= 5 ? 5 : exp.totalYears >= 3 ? 4 : exp.totalYears >= 2 ? 3 : exp.totalYears >= 1 ? 2 : 1;
     const s1d = st[1]?.["upload-your-documents"]?.documents || {};
-    const proof = (st[3]?.docs || []).length > 0 || Boolean(s1d.currentOfferLetter || s1d.previousRelievingLetter || s1d.updatedResume || s1d.experienceLetters) || (st[7]?.["career-documents"] && ["offerLetter", "experienceLetter", "relievingLetter", "latestPayslip"].some((k) => st[7]["career-documents"][k]));
+    const proof = (st[3]?.["current-previous-employment-entry"] || []).some((e) => e.offerLetterDoc || e.relievingLetterDoc || e.experienceLetterDoc) || (st[3]?.docs || []).length > 0 || Boolean(s1d.currentOfferLetter || s1d.previousRelievingLetter || s1d.updatedResume || s1d.experienceLetters) || (st[7]?.["career-documents"] && ["offerLetter", "experienceLetter", "relievingLetter", "latestPayslip"].some((k) => st[7]["career-documents"][k]));
     pts[3] = 15 + tier + (proof ? 5 : 0);
   }
   if (done.has(4)) pts[4] = 10;
-  if (done.has(5)) pts[5] = 5 + (filled(st[5]?.["performance-metrics"]) >= 3 ? 5 : 0);
+  if (done.has(5)) { const pm5 = st[5]?.["performance-metrics"]; const pl5 = Array.isArray(pm5) ? pm5 : (pm5 ? [pm5] : []); pts[5] = 5 + (pl5.some((e) => filled(e) >= 3) ? 5 : 0); }
   if (done.has(6)) {
     const certs = st[6]?.["add-certification"] || [];
     pts[6] = Math.min(15, certs.reduce((t, c) => t + (c.certificateUpload ? 5 : 3), 0));
@@ -435,7 +442,7 @@ function syncLegacy(candidate) {
   const st = px.stages || {};
   const done = px.completed || [];
   const a = st[1]?.["personal-contact"] || {};
-  const c = st[1]?.["current-career-status"] || {};
+  const c = st[3]?.["current-career-status"] || st[1]?.["current-career-status"] || {};
   const edu = st[2]?.education || {};
   const emp = st[3]?.["current-previous-employment-entry"] || [];
   const exp = calcExperience(emp);
@@ -443,7 +450,7 @@ function syncLegacy(candidate) {
   const certs = st[6]?.["add-certification"] || [];
   const prefs = st[7]?.["future-career-preferences"] || {};
   const vis = st[8]?.["visibility-consent"] || {};
-  const locs = splitLocs(c.preferredWorkLocation);
+  const locs = [...new Set([c.preferredWorkLocation, c.preferredWorkLocation2, c.preferredWorkLocation3].flatMap((v) => splitLocs(v)))].slice(0, 3);
 
   if (done.includes(1) || a.fullName) {
     candidate.stage1 = {
@@ -467,6 +474,10 @@ function syncLegacy(candidate) {
       degree: edu.degreeCourse || "",
       collegeName: edu.collegeName || "",
       graduationYear: edu.yearOfPassing || "",
+      joiningYear: edu.yearOfJoining || "",
+      university: edu.university || "",
+      courseCompleted: edu.courseCompleted || "",
+      hasArrears: edu.hasArrears || "",
       cgpa: edu.percentageCgpa || "",
     };
     candidate.markModified("stage1");
@@ -475,6 +486,7 @@ function syncLegacy(candidate) {
     candidate.stage2 = {
       ...(candidate.stage2 || {}),
       domain: tech.primaryDomain || c.primaryCareerCategory || "",
+      secondaryDomain: tech.secondaryDomain || "",
       specialty: tech.specialtyHandled || "",
       totalExperience: exp.totalYears ? `${exp.totalYears} years` : "",
       relevantExperience: exp.rcmYears ? `${exp.rcmYears} years` : "",
@@ -483,9 +495,9 @@ function syncLegacy(candidate) {
         company: e.companyName, designation: e.designation, from: e.dateOfJoining,
         to: e.currentlyWorkingHere === "Yes" ? "Present" : e.lastWorkingDate,
       })),
-      proofDocUrl: (st[3]?.docs || [])[0]?.url || st[1]?.["upload-your-documents"]?.documents?.currentOfferLetter?.url || candidate.stage2?.proofDocUrl || "",
-      provisionalCertificateUrl: st[1]?.["upload-your-documents"]?.documents?.provisionalCertificate?.url || "",
-      trainingCertificateUrl: st[1]?.["upload-your-documents"]?.documents?.trainingCertificate?.url || "",
+      proofDocUrl: ((st[3]?.["current-previous-employment-entry"] || []).map((e) => e.offerLetterDoc || e.experienceLetterDoc || e.relievingLetterDoc).find(Boolean) || {}).url || (st[3]?.docs || [])[0]?.url || st[1]?.["upload-your-documents"]?.documents?.currentOfferLetter?.url || candidate.stage2?.proofDocUrl || "",
+      provisionalCertificateUrl: st[2]?.education?.provisionalCertificate?.url || st[1]?.["upload-your-documents"]?.documents?.provisionalCertificate?.url || "",
+      trainingCertificateUrl: ((st[2]?.["training-academy-history"] || []).find((t) => t.trainingCertificate) || {}).trainingCertificate?.url || st[1]?.["upload-your-documents"]?.documents?.trainingCertificate?.url || "",
     };
     candidate.markModified("stage2");
   }
@@ -497,13 +509,29 @@ function syncLegacy(candidate) {
     }));
     candidate.stage3 = certs.length
       ? { ...(candidate.stage3 || {}), skipped: false, certifications: list, certName: list[0].name, name: list[0].name }
-      : { ...(candidate.stage3 || {}), skipped: true, certifications: [] };
+      : { ...(candidate.stage3 || {}), skipped: true, nonCertified: true, certifications: [] };
     candidate.markModified("stage3");
+  }
+  const rb = st[7]?.["resume-builder"] || {};
+  if (done.includes(7) && (rb.resumeBuilt === "Yes" || st[7]?.["career-documents"]?.latestResume)) {
+    const built = rb.resumeBuilt === "Yes";
+    candidate.stage7 = {
+      ...(candidate.stage7 || {}),
+      built: built || Boolean(candidate.stage7?.built),
+      template: rb.resumeTemplate || candidate.stage7?.template || "",
+      objective: rb.resumeObjective || candidate.stage7?.objective || "",
+      summary: rb.resumeObjective || candidate.stage7?.summary || "",
+      professionalSummary: rb.resumeSummary || candidate.stage7?.professionalSummary || "",
+      themeSettings: built ? { accentColor: rb.resumeAccent || undefined, headerBg: rb.resumeHeaderBg || undefined, fontFamily: rb.resumeFont || undefined, density: rb.resumeDensity || undefined } : (candidate.stage7?.themeSettings || {}),
+      resumeUrl: st[7]?.["career-documents"]?.latestResume?.url || candidate.stage7?.resumeUrl || "",
+    };
+    candidate.markModified("stage7");
   }
   if (done.includes(8) || prefs.expectedSalaryCtc) {
     const live = px.published ? vis.profileVisibility !== "Private" && vis.openToOpportunities !== "No" : false;
     candidate.stage8 = {
       ...(candidate.stage8 || {}),
+      currentCtc: prefs.currentCtc || "",
       expectedCtc: prefs.expectedSalaryCtc || "",
       ctc: prefs.expectedSalaryCtc || "",
       role: prefs.preferredDesignation || "",

@@ -3199,7 +3199,16 @@ router.get("/applications", async (req, res) => {
     .populate("companyId", "companyName stage9 jobId")
     .sort({ createdAt: -1 });
 
-  const applications = await enrichApplications(rawApplications);
+  // Each dashboard sees only the applications made through its own portal (?profileType=fresher|experienced).
+  let visible = rawApplications;
+  const wantType = ["fresher", "experienced"].includes(req.query.profileType) ? req.query.profileType : null;
+  if (wantType) {
+    const cand = await Candidate.findById(req.candidateId);
+    const currentType = cand ? profileUtil.activeType(cand) : "fresher";
+    visible = rawApplications.filter((a) => (a.profileType || currentType) === wantType);
+  }
+
+  const applications = await enrichApplications(visible);
   res.json({ applications });
 });
 

@@ -114,7 +114,8 @@ function buildPrefill(candidate, placements = []) {
     preferredWorkLocation: cities.join(", "),
   };
   out[1]["personal-contact"] = personal;
-  out[1]["current-career-status"] = career;
+  out[3] = out[3] || {};
+  out[3]["current-career-status"] = career;
 
   // ---- Stage 2: education + academy training
   const education = {

@@ -33,13 +33,20 @@ export function collectDocuments(stages = {}) {
   const s1 = stages[1] || {};
   const sec1 = SCHEMA[0].sections.find((x) => x.kind === "docslots");
   const docs1 = (s1[sec1.id] || {}).documents || {};
-  sec1.slots.forEach((sl) => out.push({ label: sl.label, stage: 1, required: sl.required, file: docs1[sl.key] || null, na: sl.naKey && (s1[sec1.id] || {})[sl.naKey] === "Yes" }));
+  sec1.slots.forEach((sl) => out.push({ label: sl.label, stage: 1, required: sl.required, file: docs1[sl.key] || null }));
   const p = (stages[1]?.["personal-contact"] || {}).profilePhoto;
   if (p) out.push({ label: "Profile Photo", stage: 1, file: p });
-  (stages[3]?.docs || []).forEach((d) => out.push({ label: "Employment Proof", stage: 3, file: d }));
-  ((stages[6] || {})["add-certification"] || []).forEach((c) => c.certificateUpload && out.push({ label: `Certificate — ${c.certificationName || "Certification"}`, stage: 6, file: c.certificateUpload }));
-  const cd = (stages[7] || {})["career-documents"] || {};
-  SCHEMA[6].sections[0].fields.forEach((f) => cd[f.key] && out.push({ label: f.label, stage: 7, file: cd[f.key] }));
+  const edu = (stages[2] || {}).education || {};
+  if (edu.provisionalCertificate) out.push({ label: "Provisional / Degree Certificate", stage: 2, file: edu.provisionalCertificate });
+  ((stages[2] || {})["training-academy-history"] || []).forEach((t) => t.trainingCertificate && out.push({ label: `Training Certificate${t.academyTrainingProvider ? ` - ${t.academyTrainingProvider}` : ""}`, stage: 2, file: t.trainingCertificate }));
+  ((stages[3] || {})["current-previous-employment-entry"] || []).forEach((e) => {
+    const co = e.companyName || "Company";
+    if (e.offerLetterDoc) out.push({ label: `Offer Letter - ${co}`, stage: 3, file: e.offerLetterDoc });
+    if (e.relievingLetterDoc) out.push({ label: `Relieving Letter - ${co}`, stage: 3, file: e.relievingLetterDoc });
+    if (e.experienceLetterDoc) out.push({ label: `Experience Letter - ${co}`, stage: 3, file: e.experienceLetterDoc });
+    [["payslip1Doc", "Payslip (latest month)"], ["payslip2Doc", "Payslip (2nd last month)"], ["payslip3Doc", "Payslip (3rd last month)"]].forEach(([k, l]) => e[k] && out.push({ label: `${l} - ${co}`, stage: 3, file: e[k] }));
+  });
+  ((stages[6] || {})["add-certification"] || []).forEach((c) => c.certificateUpload && out.push({ label: `Certificate - ${c.certificationName || "Certification"}`, stage: 6, file: c.certificateUpload }));
   return out;
 }
 
@@ -51,7 +58,10 @@ export function PassportDocuments({ px, onEdit }) {
         <div className="xp-doc" key={d.label + i}>
           <span><b>{d.label}</b> <span className="xp-note">· Stage {d.stage}</span></span>
           <span style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            {d.file ? <a href={d.file.url} target="_blank" rel="noreferrer">{d.file.name || "View"}</a>
+            {d.file ? <>
+                <span style={{ fontWeight: 700, maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.file.name || "Uploaded file"}</span>
+                <a href={d.file.url} target="_blank" rel="noreferrer" className="xp-btn xp-ghost" style={{ padding: "5px 12px", fontSize: 12.5, fontWeight: 700, textDecoration: "none" }}>👁 View</a>
+              </>
               : <span className={"xp-pill " + (d.na ? "ok" : d.required ? "pending" : "ok")}>{d.na ? "Not applicable" : d.required ? "Missing" : "Optional"}</span>}
             {onEdit && !d.file && !d.na && <button type="button" className="xp-sum-link" onClick={() => onEdit(d.stage)}>Upload</button>}
           </span>
@@ -75,8 +85,10 @@ export default function PassportSummary({ px, onEdit, compact = false }) {
             <div key={st.num} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: "1px solid #E2E8F0" }}>
               <span style={{ fontWeight: 700 }}>{st.num}. {st.name}</span>
               <span style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                <span className={"xp-pill " + (ok ? "ok" : "pending")}>{ok ? "Complete" : "Pending"}</span>
-                {onEdit && <button type="button" className="xp-sum-link" onClick={() => onEdit(st.num)}>{ok ? "Edit" : "Fill in"}</button>}
+                {ok && onEdit ? <button type="button" className="xp-btn xp-ghost" style={{ padding: "6px 14px", fontSize: 12.5, fontWeight: 700 }} title="Open this stage to preview or edit" onClick={() => onEdit(st.num)}>👁 Preview / Edit</button> : <>
+                  <span className={"xp-pill " + (ok ? "ok" : "pending")}>{ok ? "Complete" : "Pending"}</span>
+                  {onEdit && <button type="button" className="xp-sum-link" onClick={() => onEdit(st.num)}>{ok ? "Preview / Edit" : "Fill in"}</button>}
+                </>}
               </span>
             </div>
           );
@@ -87,9 +99,9 @@ export default function PassportSummary({ px, onEdit, compact = false }) {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
               <h4 style={{ margin: 0 }}>{String(st.num).padStart(2, "0")} · {st.name}</h4>
               <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <span className={"xp-pill " + (ok ? "ok" : "pending")}>{ok ? "Complete" : "Pending"}</span>
+                {!ok && <span className="xp-pill pending">Pending</span>}
                 <span className="xp-note" style={{ margin: 0 }}>{pts}/{PASSPORT_MAX_POINTS[st.num]} pts</span>
-                {onEdit && <button type="button" className="xp-btn xp-ghost" style={{ padding: "6px 12px", fontSize: 12.5 }} onClick={() => onEdit(st.num)}>Edit</button>}
+                {onEdit && <button type="button" className="xp-btn xp-ghost" style={{ padding: "6px 12px", fontSize: 12.5, fontWeight: 700 }} onClick={() => onEdit(st.num)}>{ok ? "👁 Preview / Edit" : "Fill in"}</button>}
               </span>
             </div>
             {st.sections.map((sec) => {

@@ -500,8 +500,19 @@ router.post("/messagecentral/fetch-document", async (req, res) => {
       const pc = candidate.experienced.stages[1]["personal-contact"];
       const ud = candidate.experienced.stages[1]["upload-your-documents"];
       if (verification.name) pc.fullName = verification.name;
-      if (verification.dob) pc.dateOfBirth = verification.dob;
-      if (verification.gender) pc.gender = verification.gender;
+      // The passport form uses <input type="date"> (YYYY-MM-DD) and a fixed gender list.
+      const isoDob = (() => {
+        const v = String(verification.dob || "").trim();
+        let m = v.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+        if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+        m = v.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+        return m ? `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}` : "";
+      })();
+      if (isoDob) pc.dateOfBirth = isoDob;
+      if (verification.gender) {
+        const g = String(verification.gender).trim().toLowerCase();
+        pc.gender = g.startsWith("m") ? "Male" : g.startsWith("f") ? "Female" : g === "not specified" || !g ? pc.gender : "Other";
+      }
       pc.governmentIdType = "Aadhaar";
       if (verification.maskedAadhaar) {
         pc.governmentIdNumber = verification.maskedAadhaar;
