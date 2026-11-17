@@ -3,11 +3,13 @@ const { calculateVerificationScore } = require("../utils/verificationScore");
 
 const DOCS = { aadhaarCard: { url: "u1", name: "a" }, panCard: { url: "u1", name: "p" }, updatedResume: { url: "u1", name: "resume.pdf" }, provisionalCertificate: { url: "u1", name: "c" }, currentOfferLetter: { url: "u1", name: "o" }, previousRelievingLetter: { url: "u1", name: "r" } };
 const s1 = () => P.normalizeStage(1, {
-  "upload-your-documents": { aadhaarNumber: "234567890009", panNumber: "abcde1234f", documents: DOCS },
+  "upload-your-documents": { aadhaarNumber: "234567890009", documents: DOCS },
   "personal-contact": { fullName: "A B", dateOfBirth: "1995-01-01", gender: "Female", mobileNumber: "9876543210", email: "a@b.com", governmentIdType: "Aadhaar", isGovtIdVerified: "Yes" },
-  "current-career-status": { currentEmploymentStatus: "Currently Employed", currentCompany: "X", currentDesignation: "Coder", primaryCareerCategory: "Medical Coding", careerAvailability: "Actively Looking", noticePeriod: "Yes", noticePeriodDays: "30", preferredWorkLocation: "Chennai, Pune", preferredWorkMode: "Hybrid" },
 }, [{ url: "u1" }]);
-const emp = (list) => P.normalizeStage(3, { "current-previous-employment-entry": list });
+const CAREER = { currentEmploymentStatus: "Currently Employed", currentCompany: "X", currentDesignation: "Coder", primaryCareerCategory: "Medical Coding", careerAvailability: "Actively Looking", noticePeriod: "Yes", noticePeriodDays: "30", preferredWorkLocation: "Chennai", preferredWorkMode: "Hybrid" };
+const emp = (list) => P.normalizeStage(3, { "current-career-status": CAREER, "current-previous-employment-entry": list });
+const s3career = () => P.normalizeStage(3, { "current-career-status": { ...CAREER }, "current-previous-employment-entry": [{ companyName: "X", designation: "Coder", employmentType: "Full-time", dateOfJoining: "2020-01-01", currentlyWorkingHere: "Yes" }] });
+const EDU = { highestQualification: "UG", degreeCourse: "B.Com", collegeName: "X College", yearOfJoining: "2013", yearOfPassing: "2016", courseCompleted: "Yes" };
 
 describe("experienced passport", () => {
   test("stage 1 requires fields, accepts a complete form", () => {
@@ -22,13 +24,10 @@ describe("experienced passport", () => {
     expect(P.validateStage(1, ok)).toEqual([]);
     P.maskSensitive(1, ok);
     expect(ok["upload-your-documents"].aadhaarNumber).toBe("XXXX XXXX 0009");
-    expect(ok["upload-your-documents"].panNumber).toBe("XXXXX1234F");
     expect(P.validateStage(1, ok)).toEqual([]); // masked values re-save cleanly
     const none = s1();
     none["upload-your-documents"].documents = {};
-    expect(P.validateStage(1, none).join(" ")).toMatch(/Upload your Aadhaar Card/);
-    none["upload-your-documents"].noPreviousCompany = "Yes";
-    expect(P.validateStage(1, none).join(" ")).not.toMatch(/Relieving/);
+    expect(P.validateStage(1, none)).toEqual([]); // documents are optional now (Aadhaar is verified via DigiLocker)
   });
   test("Aadhaar needs DigiLocker verification; the client cannot fake or change it", () => {
     const d = s1();
@@ -47,28 +46,28 @@ describe("experienced passport", () => {
     expect(P.validateStage(1, e).join(" ")).not.toMatch(/DigiLocker/);
   });
   test("notice period: Yes/No, and Yes needs a number of days", () => {
-    const d = s1();
+    const d = s3career();
     d["current-career-status"].noticePeriod = "";
-    expect(P.validateStage(1, d).join(" ")).toMatch(/notice period/i);
+    expect(P.validateStage(3, d).join(" ")).toMatch(/notice period/i);
     d["current-career-status"].noticePeriod = "Yes";
     d["current-career-status"].noticePeriodDays = "";
-    expect(P.validateStage(1, d).join(" ")).toMatch(/how many days/i);
+    expect(P.validateStage(3, d).join(" ")).toMatch(/how many days/i);
     d["current-career-status"].noticePeriodDays = "400";
-    expect(P.validateStage(1, d).join(" ")).toMatch(/1 and 365/);
+    expect(P.validateStage(3, d).join(" ")).toMatch(/1 and 365/);
     d["current-career-status"].noticePeriodDays = "45";
-    expect(P.validateStage(1, d)).toEqual([]);
+    expect(P.validateStage(3, d)).toEqual([]);
     d["current-career-status"].noticePeriod = "No";
     d["current-career-status"].noticePeriodDays = "";
-    expect(P.validateStage(1, d)).toEqual([]);
+    expect(P.validateStage(3, d)).toEqual([]);
   });
   test("academy training is optional / Not Applicable", () => {
-    const edu = { education: { highestQualification: "UG", degreeCourse: "B.Com", collegeName: "X College", yearOfPassing: "2016" } };
+    const edu = { education: EDU };
     expect(P.validateStage(2, P.normalizeStage(2, edu))).toEqual([]); // no training at all is fine
     const na = P.normalizeStage(2, { ...edu, "training-applicability": { attendedAcademyTraining: "Not Applicable" }, "training-academy-history": [{ courseName: "ignored" }] });
     expect(na["training-academy-history"]).toEqual([]);
     expect(P.validateStage(2, na)).toEqual([]);
     const yes = P.normalizeStage(2, { ...edu, "training-applicability": { attendedAcademyTraining: "Yes" } });
-    expect(P.validateStage(2, yes).join(" ")).toMatch(/Not Applicable/);
+    expect(P.validateStage(2, yes).join(" ")).toMatch(/academy \/ training details/i);
   });
   test("rejects underage and bad mobile", () => {
     const d = s1();
@@ -78,7 +77,7 @@ describe("experienced passport", () => {
     expect(P.validateStage(1, d).join(" ")).toMatch(/mobile/i);
   });
   test("employment: needs an entry, date order, single current job", () => {
-    expect(P.validateStage(3, emp([]))[0]).toMatch(/at least one/);
+    expect(P.validateStage(3, emp([])).join(" ")).toMatch(/at least one/);
     const bad = emp([{ companyName: "A", designation: "x", employmentType: "Full-time", dateOfJoining: "2022-01-01", lastWorkingDate: "2020-01-01", currentlyWorkingHere: "No" }]);
     expect(P.validateStage(3, bad)[0]).toMatch(/before the Date of Joining/);
     const two = emp([1, 2].map((i) => ({ companyName: "C" + i, designation: "x", employmentType: "Full-time", dateOfJoining: "2020-01-01", currentlyWorkingHere: "Yes" })));
@@ -105,7 +104,7 @@ describe("experienced passport", () => {
   });
   test("stage 2 accepts training duration", () => {
     const withTraining = P.normalizeStage(2, {
-      education: { highestQualification: "UG", degreeCourse: "B.Sc", collegeName: "College", yearOfPassing: "2020" },
+      education: { ...EDU, degreeCourse: "B.Sc", yearOfJoining: "2017", yearOfPassing: "2020" },
       "training-academy-history": [{ academyTrainingProvider: "Apex", courseName: "Coding", trainingDuration: "6 months" }],
     });
     expect(withTraining["training-academy-history"][0].trainingDuration).toBe("6 months");

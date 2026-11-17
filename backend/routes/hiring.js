@@ -1177,7 +1177,15 @@ candidateRouter.get("/", async (req, res) => {
   try {
     const apps = await Application.find({ candidateId: req.candidateId, "hiring.stage": { $in: IN_FLOW } }).populate("companyId", "companyName stage9 jobId jdPublished logo companyLogo stage2.logo stage2.logosquare stage4.blogo").sort({ updatedAt: -1 });
     const out = [];
+    // Separate rounds for fresher / experienced profiles (?profileType=fresher|experienced)
+    const wantType = ["fresher", "experienced"].includes(req.query.profileType) ? req.query.profileType : null;
+    let currentType = "fresher";
+    if (wantType) {
+      const cand = await Candidate.findById(req.candidateId);
+      if (cand) currentType = require("../utils/fresherToExperienced").activeType(cand);
+    }
     for (const app of apps) {
+      if (wantType && (app.profileType || currentType) !== wantType) continue;
       const h = app.hiring || {};
       const company = app.companyId;
       const titles = await jobTitles(company, [app]);

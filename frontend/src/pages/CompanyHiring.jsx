@@ -352,10 +352,10 @@ export default function CompanyHiring() {
           <>
             {tab === "applicants" && <ApplicantsTab {...common} />}
             {tab === "exams" && (
-              <>
-                <ExamsTab {...common} />
-                <ResultsTab {...common} />
-              </>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(440px, 1fr))", gap: 16, alignItems: "start" }}>
+                <div style={{ minWidth: 0 }}><ExamsTab {...common} /></div>
+                <div style={{ minWidth: 0 }}><ResultsTab {...common} /></div>
+              </div>
             )}
             {tab === "technical" && <TechnicalTab {...common} />}
             {tab === "hr" && <HrTab {...common} />}
@@ -468,7 +468,7 @@ function ExamsTab({ data, act, busy }) {
   return (
     <>
       <Card title="Four ways to run Round 1 - your choice, your rules" right={<Pill bg="#EFF6FF" color="#1D4ED8">Scores land on the same scoreboard</Pill>}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 12 }}>
           <div style={{ ...optionCard, borderColor: "var(--gold)" }}>
             <div style={{ fontWeight: 800, marginBottom: 4 }}>🏛 Option 1 · Talentera Library <Pill bg="#FEF3C7" color="#92400E">Recommended</Pill></div>
             <div style={{ fontSize: 12, color: "#64748B", marginBottom: 10 }}>Pre-built MCQ assessments. Auto-scored, webcam proctored, 1-click allocate.</div>

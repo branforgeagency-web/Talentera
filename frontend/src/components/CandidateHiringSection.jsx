@@ -7,7 +7,7 @@ const STEPS = [["exam", "Assessment"], ["technical", "Technical"], ["hr", "HR ro
 const stepIndex = (stage) => Math.max(0, STEPS.findIndex(([k]) => k === (stage === "hold" ? "approval" : stage)));
 const errMsg = (e, d) => e?.response?.data?.message || d;
 
-export default function CandidateHiringSection({ triggerToast, onChanged }) {
+export default function CandidateHiringSection({ triggerToast, onChanged, profileType }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openResults, setOpenResults] = useState({}); // application id -> assessment score details expanded
@@ -17,7 +17,7 @@ export default function CandidateHiringSection({ triggerToast, onChanged }) {
 
   const load = useCallback(async () => {
     try {
-      const res = await api.get("/candidate/hiring");
+      const res = await api.get("/candidate/hiring", { params: profileType ? { profileType } : {} });
       setItems(res.data?.items || []);
       if (typeof onChanged === "function") onChanged();
     } catch (e) {
@@ -25,7 +25,7 @@ export default function CandidateHiringSection({ triggerToast, onChanged }) {
     } finally {
       setLoading(false);
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [profileType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { load(); }, [load]);
 

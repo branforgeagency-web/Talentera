@@ -7,8 +7,8 @@
   "sections": [
    {
     "id": "upload-your-documents",
-    "title": "Upload Your Documents",
-    "desc": "Enter your ID numbers and upload the documents below. Aadhaar and PAN numbers are stored masked - only the last 4 characters are kept.",
+    "title": "Verify Your Identity & Resume",
+    "desc": "Your Aadhaar is verified instantly with DigiLocker - no Aadhaar or PAN upload is needed. The number is stored masked (last 4 characters only). Upload your updated resume here, or create one later in Stage 7.",
     "kind": "docslots",
     "numbers": [
      {
@@ -16,59 +16,14 @@
       "label": "Aadhaar Card Number",
       "placeholder": "12-digit Aadhaar number",
       "required": true
-     },
-     {
-      "key": "panNumber",
-      "label": "PAN Number",
-      "placeholder": "e.g., ABCDE1234F",
-      "required": true
      }
     ],
     "slots": [
      {
-      "key": "aadhaarCard",
-      "label": "Aadhaar Card",
-      "required": true
-     },
-     {
-      "key": "panCard",
-      "label": "PAN Card",
-      "required": true
-     },
-     {
       "key": "updatedResume",
       "label": "Updated Resume",
-      "required": true
-     },
-     {
-      "key": "currentOfferLetter",
-      "label": "Current / Latest Offer Letter",
-      "required": true
-     },
-     {
-      "key": "previousRelievingLetter",
-      "label": "Previous Company Relieving Letter",
-      "required": true,
-      "naKey": "noPreviousCompany",
-      "naLabel": "I have no previous company"
-     },
-     {
-      "key": "experienceLetters",
-      "label": "Experience Letters",
       "required": false,
-      "hint": "If available"
-     },
-     {
-      "key": "provisionalCertificate",
-      "label": "Provisional Certificate",
-      "required": false,
-      "hint": "Optional"
-     },
-     {
-      "key": "trainingCertificate",
-      "label": "Training Certificate",
-      "required": false,
-      "hint": "Non mandatory"
+      "hint": "Optional - or create one in Stage 7"
      }
     ]
    },
@@ -173,6 +128,611 @@
      }
     ],
     "id": "personal-contact"
+   }
+  ]
+ },
+ {
+  "num": 2,
+  "name": "Education, Training & Foundation",
+  "icon": "EDU",
+  "purpose": "Capture academic base and how the candidate entered the RCM / healthcare career.",
+  "sections": [
+   {
+    "title": "Education",
+    "desc": "Can be extracted from resume and confirmed.",
+    "kind": "fields",
+    "repeatable": false,
+    "fields": [
+     {
+      "key": "highestQualification",
+      "label": "Highest Qualification",
+      "type": "select",
+      "source": "auto",
+      "options": [
+       "Diploma",
+       "UG",
+       "PG",
+       "Doctorate",
+       "Other"
+      ],
+      "required": true
+     },
+     {
+      "key": "degreeCourse",
+      "label": "Degree / Course",
+      "type": "combo",
+      "source": "auto",
+      "placeholder": "e.g., B.Pharm",
+      "required": true,
+      "options": [
+       "B.Sc",
+       "B.Pharm",
+       "B.Sc Nursing",
+       "BDS",
+       "BPT",
+       "BAMS",
+       "BHMS",
+       "BUMS",
+       "B.Tech",
+       "B.E",
+       "B.Com",
+       "BBA",
+       "BCA",
+       "BA",
+       "MBBS",
+       "M.Sc",
+       "M.Pharm",
+       "M.Sc Nursing",
+       "MDS",
+       "MPT",
+       "M.Tech",
+       "M.Com",
+       "MBA",
+       "MCA",
+       "MA",
+       "Diploma",
+       "PhD",
+       "B.Sc Biotechnology",
+       "B.Sc Microbiology",
+       "B.Sc Biochemistry",
+       "B.Sc Zoology",
+       "B.Sc Botany",
+       "B.Sc Chemistry",
+       "B.Sc Computer Science",
+       "B.Sc Medical Lab Technology",
+       "B.Sc Allied Health Science",
+       "B.Sc Physician Assistant",
+       "B.Sc Optometry",
+       "B.Sc Radiology / Imaging Technology",
+       "B.Sc Nutrition & Dietetics",
+       "B.Sc Physics",
+       "B.Sc Mathematics",
+       "B.Sc Psychology",
+       "B.Sc Genetics",
+       "B.Sc Clinical Research",
+       "BOT",
+       "B.Voc",
+       "BSW",
+       "M.Sc Biotechnology",
+       "M.Sc Microbiology",
+       "M.Sc Biochemistry",
+       "M.Sc Zoology",
+       "M.Sc Botany",
+       "M.Sc Chemistry",
+       "M.Sc Computer Science",
+       "M.Sc Clinical Research",
+       "MHA (Hospital Administration)",
+       "MPH (Public Health)",
+       "MD",
+       "MS",
+       "Pharm.D",
+       "D.Pharm",
+       "DMLT",
+       "Diploma in Nursing (GNM)",
+       "ANM"
+      ]
+     },
+     {
+      "key": "specialization",
+      "label": "Specialization",
+      "type": "combo",
+      "source": "auto",
+      "placeholder": "Branch / subject",
+      "options": [
+       "Life Sciences",
+       "Biotechnology",
+       "Microbiology",
+       "Biochemistry",
+       "Zoology",
+       "Botany",
+       "Chemistry",
+       "Pharmacy",
+       "Nursing",
+       "Physiotherapy",
+       "Dental",
+       "Computer Science",
+       "Commerce",
+       "Management",
+       "Healthcare Management",
+       "Hospital Administration",
+       "Arts"
+      ]
+     },
+     {
+      "key": "collegeName",
+      "label": "College Name",
+      "type": "suggest",
+      "source": "auto",
+      "placeholder": "Type or pick your college",
+      "required": true,
+      "options": [
+       "Loyola College, Chennai",
+       "Madras Christian College",
+       "Stella Maris College",
+       "Ethiraj College for Women",
+       "Women's Christian College",
+       "Presidency College, Chennai",
+       "Quaid-E-Millath Government College for Women",
+       "PSG College of Arts and Science",
+       "PSG College of Technology",
+       "Kumaraguru College of Technology",
+       "Sri Krishna Arts and Science College",
+       "Kongunadu Arts and Science College (KASC)",
+       "Government Arts College, Coimbatore",
+       "St. Joseph's College, Tiruchirappalli",
+       "Bishop Heber College",
+       "Jamal Mohamed College",
+       "National College, Tiruchirappalli",
+       "American College, Madurai",
+       "Thiagarajar College",
+       "Fatima College, Madurai",
+       "Kongu Engineering College",
+       "St. Xavier's College, Palayamkottai",
+       "Nirmala College for Women",
+       "Christ College, Bangalore",
+       "St. Joseph's College, Bangalore",
+       "Mount Carmel College, Bangalore",
+       "Jyoti Nivas College",
+       "Osmania Medical College",
+       "Nizam College, Hyderabad",
+       "St. Francis College for Women, Hyderabad",
+       "Loyola Academy, Secunderabad",
+       "St. Teresa's College, Ernakulam",
+       "Maharaja's College, Ernakulam",
+       "Fergusson College, Pune",
+       "Wilson College, Mumbai",
+       "St. Xavier's College, Mumbai"
+      ]
+     },
+     {
+      "key": "university",
+      "label": "University",
+      "type": "combo",
+      "source": "auto",
+      "placeholder": "University name",
+      "options": [
+       "University of Madras",
+       "Anna University",
+       "Bharathiar University",
+       "Bharathidasan University",
+       "Madurai Kamaraj University",
+       "Manonmaniam Sundaranar University",
+       "Alagappa University",
+       "Periyar University",
+       "Annamalai University",
+       "Tamil Nadu Dr. M.G.R. Medical University",
+       "Tamil Nadu Dr. J. Jayalalithaa Fisheries University",
+       "Osmania University",
+       "Jawaharlal Nehru Technological University (JNTU)",
+       "Kakatiya University",
+       "Telangana University",
+       "Andhra University",
+       "Sri Venkateswara University",
+       "Acharya Nagarjuna University",
+       "Dr. NTR University of Health Sciences",
+       "Bangalore University",
+       "Visvesvaraya Technological University (VTU)",
+       "Rajiv Gandhi University of Health Sciences (RGUHS)",
+       "University of Mysore",
+       "Mangalore University",
+       "Karnatak University",
+       "Kuvempu University",
+       "University of Kerala",
+       "Mahatma Gandhi University",
+       "University of Calicut",
+       "Cochin University of Science and Technology",
+       "Kerala University of Health Sciences",
+       "University of Mumbai",
+       "Savitribai Phule Pune University",
+       "University of Delhi",
+       "Guru Gobind Singh Indraprastha University",
+       "Jamia Millia Islamia",
+       "Aligarh Muslim University",
+       "Banaras Hindu University",
+       "University of Calcutta",
+       "Jadavpur University",
+       "Gujarat University",
+       "University of Rajasthan",
+       "Amity University",
+       "SRM Institute of Science and Technology",
+       "Vellore Institute of Technology (VIT)",
+       "Manipal Academy of Higher Education",
+       "SASTRA Deemed University",
+       "Saveetha Institute of Medical and Technical Sciences",
+       "Sathyabama Institute of Science and Technology",
+       "Vels Institute of Science, Technology and Advanced Studies (VISTAS)",
+       "Hindustan Institute of Technology and Science",
+       "Bharath Institute of Higher Education and Research",
+       "Dr. M.G.R. Educational and Research Institute",
+       "Karunya Institute of Technology and Sciences",
+       "Kalasalingam Academy of Research and Education",
+       "Lovely Professional University",
+       "Symbiosis International University",
+       "Christ University",
+       "Jain University",
+       "IGNOU (Indira Gandhi National Open University)"
+      ]
+     },
+     {
+      "key": "yearOfJoining",
+      "label": "Year of Joining",
+      "type": "combo",
+      "source": "manual",
+      "options": [
+       "2032",
+       "2031",
+       "2030",
+       "2029",
+       "2028",
+       "2027",
+       "2026",
+       "2025",
+       "2024",
+       "2023",
+       "2022",
+       "2021",
+       "2020",
+       "2019",
+       "2018",
+       "2017",
+       "2016",
+       "2015",
+       "2014",
+       "2013",
+       "2012",
+       "2011",
+       "2010",
+       "2009",
+       "2008",
+       "2007",
+       "2006",
+       "2005",
+       "2004",
+       "2003",
+       "2002",
+       "2001",
+       "2000",
+       "1999",
+       "1998",
+       "1997",
+       "1996",
+       "1995",
+       "1994",
+       "1993",
+       "1992",
+       "1991",
+       "1990",
+       "1989",
+       "1988",
+       "1987",
+       "1986",
+       "1985",
+       "1984",
+       "1983",
+       "1982",
+       "1981",
+       "1980",
+       "1979",
+       "1978",
+       "1977",
+       "1976",
+       "1975",
+       "1974",
+       "1973",
+       "1972",
+       "1971",
+       "1970"
+      ],
+      "required": true
+     },
+     {
+      "key": "yearOfPassing",
+      "label": "Year of Completion",
+      "type": "combo",
+      "source": "auto",
+      "placeholder": "YYYY",
+      "required": true,
+      "options": [
+       "2032",
+       "2031",
+       "2030",
+       "2029",
+       "2028",
+       "2027",
+       "2026",
+       "2025",
+       "2024",
+       "2023",
+       "2022",
+       "2021",
+       "2020",
+       "2019",
+       "2018",
+       "2017",
+       "2016",
+       "2015",
+       "2014",
+       "2013",
+       "2012",
+       "2011",
+       "2010",
+       "2009",
+       "2008",
+       "2007",
+       "2006",
+       "2005",
+       "2004",
+       "2003",
+       "2002",
+       "2001",
+       "2000",
+       "1999",
+       "1998",
+       "1997",
+       "1996",
+       "1995",
+       "1994",
+       "1993",
+       "1992",
+       "1991",
+       "1990",
+       "1989",
+       "1988",
+       "1987",
+       "1986",
+       "1985",
+       "1984",
+       "1983",
+       "1982",
+       "1981",
+       "1980",
+       "1979",
+       "1978",
+       "1977",
+       "1976",
+       "1975",
+       "1974",
+       "1973",
+       "1972",
+       "1971",
+       "1970"
+      ]
+     },
+     {
+      "key": "courseCompleted",
+      "label": "Course Completed?",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Yes",
+       "No"
+      ],
+      "required": true
+     },
+     {
+      "key": "hasArrears",
+      "label": "Any Standing Arrears?",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "No",
+       "Yes"
+      ],
+      "required": false
+     },
+     {
+      "key": "percentageCgpa",
+      "label": "Percentage / CGPA",
+      "type": "text",
+      "source": "auto",
+      "placeholder": "Academic score"
+     },
+     {
+      "key": "educationMode",
+      "label": "Education Mode",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Regular",
+       "Distance",
+       "Online",
+       "Other"
+      ]
+     },
+     {
+      "key": "provisionalCertificate",
+      "label": "Provisional / Degree Certificate",
+      "type": "file",
+      "source": "manual",
+      "required": false
+     }
+    ],
+    "id": "education"
+   },
+   {
+    "title": "Academy / Training (optional)",
+    "desc": "Training is optional - many people enter RCM through campus placements, college drives, referrals, self-study or on-the-job learning. Choose the option that fits you; only choose \"Yes\" if you want to add academy details.",
+    "id": "training-applicability",
+    "kind": "fields",
+    "repeatable": false,
+    "fields": [
+     {
+      "key": "attendedAcademyTraining",
+      "label": "How did you learn / get trained for your role?",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Yes",
+       "Self-trained",
+       "Campus placement / college drive",
+       "On-the-job training",
+       "Not Applicable"
+      ]
+     }
+    ]
+   },
+   {
+    "title": "Training / Academy History",
+    "desc": "Allow multiple training entries.",
+    "kind": "fields",
+    "repeatable": true,
+    "fields": [
+     {
+      "key": "academyTrainingProvider",
+      "label": "Academy / Training Provider",
+      "type": "text",
+      "source": "auto",
+      "placeholder": "Academy name"
+     },
+     {
+      "key": "branchLocation",
+      "label": "Branch / Location",
+      "type": "text",
+      "source": "auto",
+      "placeholder": "Academy branch"
+     },
+     {
+      "key": "courseName",
+      "label": "Course Name",
+      "type": "combo",
+      "source": "auto",
+      "placeholder": "Course / program",
+      "options": [
+       "Medical Coding",
+       "Medical Billing",
+       "AR Calling",
+       "Eligibility & Verification",
+       "RCM / Healthcare Revenue Cycle",
+       "CPC Training",
+       "CCS Training"
+      ]
+     },
+     {
+      "key": "primaryDomain",
+      "label": "Primary Domain",
+      "type": "combo",
+      "source": "auto",
+      "placeholder": "e.g., Medical Coding",
+      "options": [
+       "Medical Coding",
+       "Medical Billing",
+       "AR",
+       "Denial Management",
+       "Payment Posting",
+       "Charge Entry",
+       "Eligibility Verification",
+       "Prior Authorization",
+       "Credentialing",
+       "HCC / Risk Adjustment",
+       "QA / Audit",
+       "Training"
+      ]
+     },
+     {
+      "key": "secondaryDomain",
+      "label": "Secondary Domain",
+      "type": "combo",
+      "source": "manual",
+      "placeholder": "Optional",
+      "options": [
+       "Medical Coding",
+       "Medical Billing",
+       "AR",
+       "Denial Management",
+       "Payment Posting",
+       "Charge Entry",
+       "Eligibility Verification",
+       "Prior Authorization",
+       "Credentialing",
+       "HCC / Risk Adjustment",
+       "QA / Audit",
+       "Training"
+      ]
+     },
+     {
+      "key": "trainingMode",
+      "label": "Training Mode",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Classroom",
+       "Online",
+       "Hybrid",
+       "Corporate",
+       "Self-learning"
+      ]
+     },
+     {
+      "key": "courseStartDate",
+      "label": "Course Start Date",
+      "type": "date",
+      "source": "auto"
+     },
+     {
+      "key": "courseCompletionDate",
+      "label": "Course Completion Date",
+      "type": "date",
+      "source": "auto"
+     },
+     {
+      "key": "trainingDuration",
+      "label": "Training Duration",
+      "type": "combo",
+      "source": "manual",
+      "placeholder": "e.g., 3 months, 6 months",
+      "options": [
+       "1 month",
+       "2 months",
+       "3 months",
+       "4 months",
+       "6 months",
+       "9 months",
+       "12 months"
+      ]
+     },
+     {
+      "key": "trainingCertificate",
+      "label": "Training Certificate",
+      "type": "file",
+      "source": "manual",
+      "required": false
+     }
+    ],
+    "id": "training-academy-history"
+   }
+  ]
+ },
+ {
+  "num": 3,
+  "name": "Employment Timeline",
+  "icon": "EXP",
+  "purpose": "Build a company-wise verified employment timeline and calculate total experience automatically.",
+  "sections": [
+   {
+    "title": "Employment Documents",
+    "desc": "Use offer letters, experience letters, relieving letters and payslips to prefill employment records.",
+    "kind": "docs",
+    "id": "upload-employment-proof"
    },
    {
     "title": "Current Career Status",
@@ -204,9 +764,32 @@
      {
       "key": "currentDesignation",
       "label": "Current Designation",
-      "type": "text",
+      "type": "combo",
       "source": "auto",
-      "placeholder": "e.g., Senior Medical Coder"
+      "placeholder": "e.g., Senior Medical Coder",
+      "options": [
+       "Medical Coder",
+       "Senior Medical Coder",
+       "Medical Coding Specialist",
+       "Medical Biller",
+       "Senior Medical Biller",
+       "AR Caller",
+       "Senior AR Caller",
+       "AR Analyst",
+       "Payment Posting Executive",
+       "Charge Entry Executive",
+       "Eligibility & Verification Executive",
+       "Prior Authorization Specialist",
+       "Denial Management Specialist",
+       "Credentialing Specialist",
+       "Coding Auditor / QA",
+       "Quality Analyst",
+       "Trainer",
+       "Team Lead",
+       "Assistant Manager",
+       "Manager",
+       "Senior Manager"
+      ]
      },
      {
       "key": "primaryCareerCategory",
@@ -258,17 +841,121 @@
      {
       "key": "noticePeriodDays",
       "label": "How many days?",
-      "type": "number",
+      "type": "combo",
       "source": "manual",
-      "placeholder": "Enter number of days, e.g., 30"
+      "placeholder": "Enter number of days, e.g., 30",
+      "options": [
+       "15",
+       "30",
+       "45",
+       "60",
+       "90"
+      ]
      },
      {
       "key": "preferredWorkLocation",
-      "label": "Preferred Work Location",
-      "type": "text",
+      "label": "Preferred Work Location - 1st Preference",
+      "type": "combo",
       "source": "manual",
-      "placeholder": "Multi-select locations",
-      "required": true
+      "placeholder": "e.g., Bangalore",
+      "required": true,
+      "options": [
+       "Bangalore",
+       "Hyderabad",
+       "Chennai",
+       "Mumbai",
+       "Pune",
+       "Delhi NCR",
+       "Kolkata",
+       "Ahmedabad",
+       "Coimbatore",
+       "Kochi",
+       "Trivandrum",
+       "Visakhapatnam",
+       "Vijayawada",
+       "Mangalore",
+       "Mysore",
+       "Madurai",
+       "Noida",
+       "Gurgaon",
+       "Chandigarh",
+       "Jaipur",
+       "Indore",
+       "Nagpur",
+       "Bhubaneswar",
+       "Remote / Work from Home",
+       "Any location"
+      ]
+     },
+     {
+      "key": "preferredWorkLocation2",
+      "label": "Preferred Work Location - 2nd Preference",
+      "type": "combo",
+      "source": "manual",
+      "placeholder": "e.g., Hyderabad (optional)",
+      "required": false,
+      "options": [
+       "Bangalore",
+       "Hyderabad",
+       "Chennai",
+       "Mumbai",
+       "Pune",
+       "Delhi NCR",
+       "Kolkata",
+       "Ahmedabad",
+       "Coimbatore",
+       "Kochi",
+       "Trivandrum",
+       "Visakhapatnam",
+       "Vijayawada",
+       "Mangalore",
+       "Mysore",
+       "Madurai",
+       "Noida",
+       "Gurgaon",
+       "Chandigarh",
+       "Jaipur",
+       "Indore",
+       "Nagpur",
+       "Bhubaneswar",
+       "Remote / Work from Home",
+       "Any location"
+      ]
+     },
+     {
+      "key": "preferredWorkLocation3",
+      "label": "Preferred Work Location - 3rd Preference",
+      "type": "combo",
+      "source": "manual",
+      "placeholder": "e.g., Chennai (optional)",
+      "required": false,
+      "options": [
+       "Bangalore",
+       "Hyderabad",
+       "Chennai",
+       "Mumbai",
+       "Pune",
+       "Delhi NCR",
+       "Kolkata",
+       "Ahmedabad",
+       "Coimbatore",
+       "Kochi",
+       "Trivandrum",
+       "Visakhapatnam",
+       "Vijayawada",
+       "Mangalore",
+       "Mysore",
+       "Madurai",
+       "Noida",
+       "Gurgaon",
+       "Chandigarh",
+       "Jaipur",
+       "Indore",
+       "Nagpur",
+       "Bhubaneswar",
+       "Remote / Work from Home",
+       "Any location"
+      ]
      },
      {
       "key": "preferredWorkMode",
@@ -285,203 +972,6 @@
      }
     ],
     "id": "current-career-status"
-   }
-  ]
- },
- {
-  "num": 2,
-  "name": "Education, Training & Foundation",
-  "icon": "EDU",
-  "purpose": "Capture academic base and how the candidate entered the RCM / healthcare career.",
-  "sections": [
-   {
-    "title": "Education",
-    "desc": "Can be extracted from resume and confirmed.",
-    "kind": "fields",
-    "repeatable": false,
-    "fields": [
-     {
-      "key": "highestQualification",
-      "label": "Highest Qualification",
-      "type": "select",
-      "source": "auto",
-      "options": [
-       "Diploma",
-       "UG",
-       "PG",
-       "Doctorate",
-       "Other"
-      ],
-      "required": true
-     },
-     {
-      "key": "degreeCourse",
-      "label": "Degree / Course",
-      "type": "text",
-      "source": "auto",
-      "placeholder": "e.g., B.Pharm",
-      "required": true
-     },
-     {
-      "key": "specialization",
-      "label": "Specialization",
-      "type": "text",
-      "source": "auto",
-      "placeholder": "Branch / subject"
-     },
-     {
-      "key": "collegeName",
-      "label": "College Name",
-      "type": "text",
-      "source": "auto",
-      "placeholder": "Institution name",
-      "required": true
-     },
-     {
-      "key": "university",
-      "label": "University",
-      "type": "text",
-      "source": "auto",
-      "placeholder": "University name"
-     },
-     {
-      "key": "yearOfPassing",
-      "label": "Year of Passing",
-      "type": "number",
-      "source": "auto",
-      "placeholder": "YYYY",
-      "required": true
-     },
-     {
-      "key": "percentageCgpa",
-      "label": "Percentage / CGPA",
-      "type": "text",
-      "source": "auto",
-      "placeholder": "Academic score"
-     },
-     {
-      "key": "educationMode",
-      "label": "Education Mode",
-      "type": "select",
-      "source": "manual",
-      "options": [
-       "Regular",
-       "Distance",
-       "Online",
-       "Other"
-      ]
-     }
-    ],
-    "id": "education"
-   },
-   {
-    "title": "Academy / Training",
-    "desc": "Not everyone trains at an academy - many enter RCM through campus placements, referrals or on-the-job. Choose Not Applicable to skip this section.",
-    "id": "training-applicability",
-    "kind": "fields",
-    "repeatable": false,
-    "fields": [
-     {
-      "key": "attendedAcademyTraining",
-      "label": "Did you attend any academy / formal training?",
-      "type": "select",
-      "source": "manual",
-      "options": [
-       "Yes",
-       "Not Applicable"
-      ]
-     }
-    ]
-   },
-   {
-    "title": "Training / Academy History",
-    "desc": "Allow multiple training entries.",
-    "kind": "fields",
-    "repeatable": true,
-    "fields": [
-     {
-      "key": "academyTrainingProvider",
-      "label": "Academy / Training Provider",
-      "type": "text",
-      "source": "auto",
-      "placeholder": "Academy name"
-     },
-     {
-      "key": "branchLocation",
-      "label": "Branch / Location",
-      "type": "text",
-      "source": "auto",
-      "placeholder": "Academy branch"
-     },
-     {
-      "key": "courseName",
-      "label": "Course Name",
-      "type": "text",
-      "source": "auto",
-      "placeholder": "Course / program"
-     },
-     {
-      "key": "primaryDomain",
-      "label": "Primary Domain",
-      "type": "text",
-      "source": "auto",
-      "placeholder": "e.g., Medical Coding"
-     },
-     {
-      "key": "secondaryDomain",
-      "label": "Secondary Domain",
-      "type": "text",
-      "source": "manual",
-      "placeholder": "Optional"
-     },
-     {
-      "key": "trainingMode",
-      "label": "Training Mode",
-      "type": "select",
-      "source": "manual",
-      "options": [
-       "Classroom",
-       "Online",
-       "Hybrid",
-       "Corporate",
-       "Self-learning"
-      ]
-     },
-     {
-      "key": "courseStartDate",
-      "label": "Course Start Date",
-      "type": "date",
-      "source": "auto"
-     },
-     {
-      "key": "courseCompletionDate",
-      "label": "Course Completion Date",
-      "type": "date",
-      "source": "auto"
-     },
-     {
-      "key": "trainingDuration",
-      "label": "Training Duration",
-      "type": "text",
-      "source": "manual",
-      "placeholder": "e.g., 3 months, 6 months"
-     }
-    ],
-    "id": "training-academy-history"
-   }
-  ]
- },
- {
-  "num": 3,
-  "name": "Employment Timeline",
-  "icon": "EXP",
-  "purpose": "Build a company-wise verified employment timeline and calculate total experience automatically.",
-  "sections": [
-   {
-    "title": "Upload Employment Proof",
-    "desc": "Use offer letters, experience letters, relieving letters and payslips to prefill employment records.",
-    "kind": "docs",
-    "id": "upload-employment-proof"
    },
    {
     "title": "Current / Previous Employment Entry",
@@ -500,31 +990,110 @@
      {
       "key": "companyLocation",
       "label": "Company Location",
-      "type": "text",
+      "type": "combo",
       "source": "auto",
-      "placeholder": "City / Country"
+      "placeholder": "City / Country",
+      "options": [
+       "Bangalore",
+       "Hyderabad",
+       "Chennai",
+       "Mumbai",
+       "Pune",
+       "Delhi NCR",
+       "Kolkata",
+       "Ahmedabad",
+       "Coimbatore",
+       "Kochi",
+       "Trivandrum",
+       "Visakhapatnam",
+       "Vijayawada",
+       "Mangalore",
+       "Mysore",
+       "Madurai",
+       "Noida",
+       "Gurgaon",
+       "Chandigarh",
+       "Jaipur",
+       "Indore",
+       "Nagpur",
+       "Bhubaneswar",
+       "Remote / Work from Home",
+       "Any location"
+      ]
      },
      {
       "key": "department",
       "label": "Department",
-      "type": "text",
+      "type": "combo",
       "source": "auto",
-      "placeholder": "Department"
+      "placeholder": "Department",
+      "options": [
+       "Coding",
+       "Billing",
+       "AR / Collections",
+       "Payment Posting",
+       "Charge Entry",
+       "Eligibility & Verification",
+       "Prior Authorization",
+       "Denial Management",
+       "Credentialing",
+       "Quality / Audit",
+       "Training",
+       "Operations",
+       "HR"
+      ]
      },
      {
       "key": "designation",
       "label": "Designation",
-      "type": "text",
+      "type": "combo",
       "source": "auto",
       "placeholder": "Job title",
-      "required": true
+      "required": true,
+      "options": [
+       "Medical Coder",
+       "Senior Medical Coder",
+       "Medical Coding Specialist",
+       "Medical Biller",
+       "Senior Medical Biller",
+       "AR Caller",
+       "Senior AR Caller",
+       "AR Analyst",
+       "Payment Posting Executive",
+       "Charge Entry Executive",
+       "Eligibility & Verification Executive",
+       "Prior Authorization Specialist",
+       "Denial Management Specialist",
+       "Credentialing Specialist",
+       "Coding Auditor / QA",
+       "Quality Analyst",
+       "Trainer",
+       "Team Lead",
+       "Assistant Manager",
+       "Manager",
+       "Senior Manager"
+      ]
      },
      {
       "key": "domainProcessHandled",
       "label": "Domain / Process Handled",
-      "type": "text",
+      "type": "combo",
       "source": "auto",
-      "placeholder": "e.g., Medical Coding, Inpatient DRG, Denial Management, AR Calling"
+      "placeholder": "e.g., Medical Coding, Inpatient DRG, Denial Management, AR Calling",
+      "options": [
+       "Medical Coding",
+       "Medical Billing",
+       "AR",
+       "Denial Management",
+       "Payment Posting",
+       "Charge Entry",
+       "Eligibility Verification",
+       "Prior Authorization",
+       "Credentialing",
+       "HCC / Risk Adjustment",
+       "QA / Audit",
+       "Training"
+      ]
      },
      {
       "key": "employmentType",
@@ -575,9 +1144,68 @@
      {
       "key": "reasonForLeaving",
       "label": "Reason for Leaving",
-      "type": "text",
+      "type": "combo",
       "source": "manual",
-      "placeholder": "Optional"
+      "placeholder": "Optional",
+      "options": [
+       "Better opportunity",
+       "Higher salary",
+       "Career growth",
+       "Relocation",
+       "Higher studies",
+       "Family reasons",
+       "Health reasons",
+       "Company closure / layoff",
+       "Contract ended",
+       "Shift / timing",
+       "Work-life balance",
+       "Personal reasons"
+      ]
+     },
+     {
+      "key": "shiftDetails",
+      "label": "Shift Details",
+      "type": "combo",
+      "source": "manual",
+      "options": [
+       "Day shift",
+       "Night shift",
+       "Rotational",
+       "US shift",
+       "UK shift",
+       "Flexible"
+      ],
+      "placeholder": "e.g., Night shift (6 PM - 3 AM)",
+      "required": false
+     },
+     {
+      "key": "softwareToolsHere",
+      "label": "Software / Tools Used in this Company",
+      "type": "suggest",
+      "source": "manual",
+      "options": [
+       "Epic",
+       "Cerner",
+       "3M Encoder",
+       "Optum Encoder",
+       "Athenahealth",
+       "NextGen",
+       "eClinicalWorks",
+       "Allscripts",
+       "MEDITECH",
+       "Kareo",
+       "AdvancedMD",
+       "Availity",
+       "ABBYY",
+       "Encoder Pro",
+       "TruCode",
+       "CPT Assistant",
+       "Citrix",
+       "Waystar",
+       "Change Healthcare"
+      ],
+      "placeholder": "e.g., Epic, 3M Encoder (type several, separated by commas)",
+      "required": false
      },
      {
       "key": "rolesResponsibilities",
@@ -600,25 +1228,83 @@
      {
       "key": "careerGapDuration",
       "label": "Exact Gap Duration",
-      "type": "text",
+      "type": "combo",
       "source": "manual",
       "placeholder": "e.g., 6 months, 1 year",
-      "required": false
+      "required": false,
+      "options": [
+       "Less than 3 months",
+       "3 - 6 months",
+       "6 - 12 months",
+       "1 - 2 years",
+       "More than 2 years"
+      ]
      },
      {
       "key": "careerGapReason",
       "label": "Reason for Career Gap",
-      "type": "text",
+      "type": "combo",
       "source": "manual",
       "placeholder": "e.g., Higher studies, Family reasons, Medical, Relocation",
+      "required": false,
+      "options": [
+       "Higher studies",
+       "Family reasons",
+       "Medical",
+       "Relocation",
+       "Upskilling / certification",
+       "Looking for a better opportunity",
+       "Maternity / childcare"
+      ]
+     },
+     {
+      "key": "offerLetterDoc",
+      "label": "Offer Letter",
+      "type": "file",
+      "source": "manual",
+      "required": false
+     },
+     {
+      "key": "relievingLetterDoc",
+      "label": "Relieving Letter",
+      "type": "file",
+      "source": "manual",
+      "required": false
+     },
+     {
+      "key": "experienceLetterDoc",
+      "label": "Experience Letter",
+      "type": "file",
+      "source": "manual",
+      "required": false
+     },
+     {
+      "key": "payslip1Doc",
+      "label": "Payslip - Latest Month",
+      "type": "file",
+      "source": "manual",
+      "required": false
+     },
+     {
+      "key": "payslip2Doc",
+      "label": "Payslip - 2nd Last Month",
+      "type": "file",
+      "source": "manual",
+      "required": false
+     },
+     {
+      "key": "payslip3Doc",
+      "label": "Payslip - 3rd Last Month",
+      "type": "file",
+      "source": "manual",
       "required": false
      }
     ],
     "id": "current-previous-employment-entry"
    },
    {
-    "title": "System Calculations",
-    "desc": "Calculated from employment dates, not manually typed.",
+    "title": "Total Experience",
+    "desc": "Calculated automatically from your employment dates, not manually typed.",
     "kind": "summary",
     "items": [
      "Total Professional Experience",
@@ -659,38 +1345,86 @@
    },
    {
     "title": "Technical Expertise",
-    "desc": "Structured fields for recruiter filtering.",
+    "desc": "Structured fields for recruiter filtering. Fill the details separately for your Primary domain and your Secondary domain.",
     "kind": "fields",
     "repeatable": false,
     "fields": [
      {
       "key": "primaryDomain",
       "label": "Primary Domain",
-      "type": "text",
+      "type": "combo",
       "source": "manual",
       "placeholder": "Main domain",
-      "required": true
-     },
-     {
-      "key": "secondaryDomain",
-      "label": "Secondary Domain",
-      "type": "text",
-      "source": "manual",
-      "placeholder": "Optional"
+      "required": true,
+      "group": "Primary Domain",
+      "options": [
+       "Medical Coding",
+       "Medical Billing",
+       "AR",
+       "Denial Management",
+       "Payment Posting",
+       "Charge Entry",
+       "Eligibility Verification",
+       "Prior Authorization",
+       "Credentialing",
+       "HCC / Risk Adjustment",
+       "QA / Audit",
+       "Training"
+      ]
      },
      {
       "key": "previousCurrentDomain",
       "label": "Previous / Current Domain",
-      "type": "text",
+      "type": "combo",
       "source": "manual",
-      "placeholder": "e.g., Current: Medical Coding, Previous: AR / Billing"
+      "placeholder": "e.g., Current: Medical Coding, Previous: AR / Billing",
+      "group": "Primary Domain",
+      "options": [
+       "Medical Coding",
+       "Medical Billing",
+       "AR",
+       "Denial Management",
+       "Payment Posting",
+       "Charge Entry",
+       "Eligibility Verification",
+       "Prior Authorization",
+       "Credentialing",
+       "HCC / Risk Adjustment",
+       "QA / Audit",
+       "Training"
+      ]
      },
      {
       "key": "specialtyHandled",
       "label": "Specialty Handled",
-      "type": "text",
+      "type": "combo",
       "source": "manual",
-      "placeholder": "e.g., Surgery, Radiology, E/M"
+      "placeholder": "e.g., Surgery, Radiology, E/M",
+      "group": "Primary Domain",
+      "options": [
+       "E/M (Evaluation & Management)",
+       "Surgery",
+       "Radiology",
+       "Pathology",
+       "Cardiology",
+       "Orthopedics",
+       "Emergency Medicine",
+       "Anesthesia",
+       "Inpatient (IP-DRG)",
+       "Outpatient (OP)",
+       "Pro-Fee",
+       "Facility",
+       "Multi-specialty",
+       "ED / Urgent Care",
+       "Dermatology",
+       "Gastroenterology",
+       "Obstetrics & Gynecology",
+       "Oncology",
+       "Neurology",
+       "Behavioral Health",
+       "Pediatrics",
+       "Home Health"
+      ]
      },
      {
       "key": "usHealthcareExperience",
@@ -701,7 +1435,8 @@
        "Yes",
        "No"
       ],
-      "required": true
+      "required": true,
+      "group": "Primary Domain"
      },
      {
       "key": "domesticInternationalProcess",
@@ -712,28 +1447,162 @@
        "Domestic",
        "International",
        "Both"
-      ]
+      ],
+      "group": "Primary Domain"
      },
      {
       "key": "clientPayerProviderExposure",
       "label": "Client / Payer / Provider Exposure",
       "type": "textarea",
       "source": "manual",
-      "placeholder": "Medicare, BCBS, hospitals, etc."
+      "placeholder": "Medicare, BCBS, hospitals, etc.",
+      "group": "Primary Domain"
      },
      {
       "key": "softwareToolsUsed",
       "label": "Software / Tools Used",
       "type": "text",
       "source": "manual",
-      "placeholder": "Epic, Cerner, 3M, Encoder, Optum..."
+      "placeholder": "Epic, Cerner, 3M, Encoder, Optum...",
+      "group": "Primary Domain"
      },
      {
       "key": "yearsInCurrentDomain",
       "label": "Years in Current Domain",
       "type": "number",
       "source": "manual",
-      "placeholder": "Years"
+      "placeholder": "Years",
+      "group": "Primary Domain"
+     },
+     {
+      "key": "secondaryDomain",
+      "label": "Secondary Domain",
+      "type": "combo",
+      "source": "manual",
+      "placeholder": "Optional - leave blank if none",
+      "group": "Secondary Domain",
+      "options": [
+       "Medical Coding",
+       "Medical Billing",
+       "AR",
+       "Denial Management",
+       "Payment Posting",
+       "Charge Entry",
+       "Eligibility Verification",
+       "Prior Authorization",
+       "Credentialing",
+       "HCC / Risk Adjustment",
+       "QA / Audit",
+       "Training"
+      ]
+     },
+     {
+      "key": "secondaryPreviousCurrentDomain",
+      "label": "Previous / Current Domain (Secondary)",
+      "type": "combo",
+      "source": "manual",
+      "placeholder": "e.g., Current: Medical Coding, Previous: AR / Billing",
+      "group": "Secondary Domain",
+      "required": false,
+      "options": [
+       "Medical Coding",
+       "Medical Billing",
+       "AR",
+       "Denial Management",
+       "Payment Posting",
+       "Charge Entry",
+       "Eligibility Verification",
+       "Prior Authorization",
+       "Credentialing",
+       "HCC / Risk Adjustment",
+       "QA / Audit",
+       "Training"
+      ]
+     },
+     {
+      "key": "secondarySpecialtyHandled",
+      "label": "Specialty Handled (Secondary)",
+      "type": "combo",
+      "source": "manual",
+      "placeholder": "e.g., Surgery, Radiology, E/M",
+      "group": "Secondary Domain",
+      "required": false,
+      "options": [
+       "E/M (Evaluation & Management)",
+       "Surgery",
+       "Radiology",
+       "Pathology",
+       "Cardiology",
+       "Orthopedics",
+       "Emergency Medicine",
+       "Anesthesia",
+       "Inpatient (IP-DRG)",
+       "Outpatient (OP)",
+       "Pro-Fee",
+       "Facility",
+       "Multi-specialty",
+       "ED / Urgent Care",
+       "Dermatology",
+       "Gastroenterology",
+       "Obstetrics & Gynecology",
+       "Oncology",
+       "Neurology",
+       "Behavioral Health",
+       "Pediatrics",
+       "Home Health"
+      ]
+     },
+     {
+      "key": "secondaryUsHealthcareExperience",
+      "label": "US Healthcare Experience (Secondary)",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Yes",
+       "No"
+      ],
+      "required": false,
+      "group": "Secondary Domain"
+     },
+     {
+      "key": "secondaryDomesticInternationalProcess",
+      "label": "Domestic / International Process (Secondary)",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Domestic",
+       "International",
+       "Both"
+      ],
+      "group": "Secondary Domain",
+      "required": false
+     },
+     {
+      "key": "secondaryClientPayerProviderExposure",
+      "label": "Client / Payer / Provider Exposure (Secondary)",
+      "type": "textarea",
+      "source": "manual",
+      "placeholder": "Medicare, BCBS, hospitals, etc.",
+      "group": "Secondary Domain",
+      "required": false
+     },
+     {
+      "key": "secondarySoftwareToolsUsed",
+      "label": "Software / Tools Used (Secondary)",
+      "type": "text",
+      "source": "manual",
+      "placeholder": "Epic, Cerner, 3M, Encoder, Optum...",
+      "group": "Secondary Domain",
+      "required": false
+     },
+     {
+      "key": "secondaryYearsInDomain",
+      "label": "Years in Secondary Domain",
+      "type": "number",
+      "source": "manual",
+      "placeholder": "Years",
+      "group": "Secondary Domain",
+      "required": false
      }
     ],
     "id": "technical-expertise"
@@ -747,11 +1616,49 @@
   "purpose": "Capture how well the candidate performs, not only where they worked.",
   "sections": [
    {
-    "title": "Performance Metrics",
-    "desc": "Fields should change dynamically by selected RCM process.",
+    "title": "Share Performance Details?",
+    "desc": "Optional. Choose Not Available or Skip if you prefer not to share, or the details are unclear.",
     "kind": "fields",
     "repeatable": false,
+    "id": "performance-share",
     "fields": [
+     {
+      "key": "performanceDetailsStatus",
+      "label": "Do you want to share performance details?",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "I will share these details",
+       "Not Available",
+       "Skip - prefer not to share"
+      ],
+      "required": false
+     }
+    ]
+   },
+   {
+    "title": "Performance Metrics (company / project-wise)",
+    "desc": "Add the performance and productivity for each company or project. Use \"Add Another Company / Project\" to record more than one.",
+    "kind": "fields",
+    "repeatable": true,
+    "fields": [
+     {
+      "key": "companyName",
+      "label": "Company",
+      "type": "suggest",
+      "source": "manual",
+      "options": [],
+      "placeholder": "Pick from your Stage 3 companies or type",
+      "required": false
+     },
+     {
+      "key": "projectName",
+      "label": "Project / Client",
+      "type": "text",
+      "source": "manual",
+      "placeholder": "e.g., Cardiology coding project",
+      "required": false
+     },
      {
       "key": "dailyProductivity",
       "label": "Daily Productivity",
@@ -1065,8 +1972,8 @@
   "purpose": "Store career evidence and capture what the candidate wants next.",
   "sections": [
    {
-    "title": "Career Documents",
-    "desc": "Central professional document vault.",
+    "title": "Resume",
+    "desc": "Upload your existing resume, or create a new one from the details you already entered.",
     "kind": "fields",
     "repeatable": false,
     "fields": [
@@ -1075,39 +1982,79 @@
       "label": "Latest Resume",
       "type": "file",
       "source": "manual"
-     },
-     {
-      "key": "offerLetter",
-      "label": "Offer Letter",
-      "type": "file",
-      "source": "manual"
-     },
-     {
-      "key": "experienceLetter",
-      "label": "Experience Letter",
-      "type": "file",
-      "source": "manual"
-     },
-     {
-      "key": "relievingLetter",
-      "label": "Relieving Letter",
-      "type": "file",
-      "source": "manual"
-     },
-     {
-      "key": "latestPayslip",
-      "label": "Latest Payslip",
-      "type": "file",
-      "source": "manual"
-     },
-     {
-      "key": "otherSupportingDocument",
-      "label": "Other Supporting Document",
-      "type": "file",
-      "source": "manual"
      }
     ],
     "id": "career-documents"
+   },
+   {
+    "title": "Create a New Resume",
+    "desc": "Built from your earlier stages - preview, edit and save.",
+    "kind": "fields",
+    "repeatable": false,
+    "id": "resume-builder",
+    "fields": [
+     {
+      "key": "resumeMode",
+      "label": "Resume option",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Upload existing resume",
+       "Create a new resume"
+      ]
+     },
+     {
+      "key": "resumeTemplate",
+      "label": "Template",
+      "type": "text",
+      "source": "manual"
+     },
+     {
+      "key": "resumeAccent",
+      "label": "Accent",
+      "type": "text",
+      "source": "manual"
+     },
+     {
+      "key": "resumeHeaderBg",
+      "label": "Header",
+      "type": "text",
+      "source": "manual"
+     },
+     {
+      "key": "resumeFont",
+      "label": "Font",
+      "type": "text",
+      "source": "manual"
+     },
+     {
+      "key": "resumeDensity",
+      "label": "Density",
+      "type": "text",
+      "source": "manual"
+     },
+     {
+      "key": "resumeObjective",
+      "label": "Career Objective",
+      "type": "textarea",
+      "source": "manual"
+     },
+     {
+      "key": "resumeSummary",
+      "label": "Professional Summary",
+      "type": "textarea",
+      "source": "manual"
+     },
+     {
+      "key": "resumeBuilt",
+      "label": "Resume saved",
+      "type": "select",
+      "source": "manual",
+      "options": [
+       "Yes"
+      ]
+     }
+    ]
    },
    {
     "title": "Future Career Preferences",
@@ -1118,37 +2065,151 @@
      {
       "key": "preferredNextDomain",
       "label": "Preferred Next Domain",
-      "type": "text",
+      "type": "combo",
       "source": "manual",
-      "placeholder": "Next domain"
+      "placeholder": "Next domain",
+      "options": [
+       "Medical Coding",
+       "Medical Billing",
+       "AR",
+       "Denial Management",
+       "Payment Posting",
+       "Charge Entry",
+       "Eligibility Verification",
+       "Prior Authorization",
+       "Credentialing",
+       "HCC / Risk Adjustment",
+       "QA / Audit",
+       "Training"
+      ]
      },
      {
       "key": "preferredProcess",
       "label": "Preferred Process",
-      "type": "text",
+      "type": "combo",
       "source": "manual",
-      "placeholder": "Preferred process"
+      "placeholder": "Preferred process",
+      "options": [
+       "Medical Coding",
+       "Medical Billing",
+       "AR",
+       "Denial Management",
+       "Payment Posting",
+       "Charge Entry",
+       "Eligibility Verification",
+       "Prior Authorization",
+       "Credentialing",
+       "HCC / Risk Adjustment",
+       "QA / Audit",
+       "Training"
+      ]
      },
      {
       "key": "preferredDesignation",
       "label": "Preferred Designation",
-      "type": "text",
+      "type": "combo",
       "source": "manual",
-      "placeholder": "Target role"
+      "placeholder": "Target role",
+      "options": [
+       "Medical Coder",
+       "Senior Medical Coder",
+       "Medical Coding Specialist",
+       "Medical Biller",
+       "Senior Medical Biller",
+       "AR Caller",
+       "Senior AR Caller",
+       "AR Analyst",
+       "Payment Posting Executive",
+       "Charge Entry Executive",
+       "Eligibility & Verification Executive",
+       "Prior Authorization Specialist",
+       "Denial Management Specialist",
+       "Credentialing Specialist",
+       "Coding Auditor / QA",
+       "Quality Analyst",
+       "Trainer",
+       "Team Lead",
+       "Assistant Manager",
+       "Manager",
+       "Senior Manager"
+      ]
+     },
+     {
+      "key": "currentCtc",
+      "label": "Current CTC",
+      "type": "combo",
+      "source": "manual",
+      "options": [
+       "Below 2 LPA",
+       "2 - 3 LPA",
+       "3 - 4 LPA",
+       "4 - 5 LPA",
+       "5 - 6 LPA",
+       "6 - 8 LPA",
+       "8 - 10 LPA",
+       "10 - 12 LPA",
+       "12 - 15 LPA",
+       "15 - 20 LPA",
+       "Above 20 LPA",
+       "Not applicable"
+      ],
+      "placeholder": "e.g., 4.5 LPA",
+      "required": false
      },
      {
       "key": "expectedSalaryCtc",
       "label": "Expected Salary / CTC",
-      "type": "text",
+      "type": "combo",
       "source": "manual",
-      "placeholder": "Expected compensation"
+      "placeholder": "Expected compensation",
+      "options": [
+       "Below 2 LPA",
+       "2 - 3 LPA",
+       "3 - 4 LPA",
+       "4 - 5 LPA",
+       "5 - 6 LPA",
+       "6 - 8 LPA",
+       "8 - 10 LPA",
+       "10 - 12 LPA",
+       "12 - 15 LPA",
+       "15 - 20 LPA",
+       "Above 20 LPA",
+       "Negotiable"
+      ]
      },
      {
       "key": "preferredLocation",
       "label": "Preferred Location",
-      "type": "text",
+      "type": "combo",
       "source": "manual",
-      "placeholder": "Multi-select locations"
+      "placeholder": "Multi-select locations",
+      "options": [
+       "Bangalore",
+       "Hyderabad",
+       "Chennai",
+       "Mumbai",
+       "Pune",
+       "Delhi NCR",
+       "Kolkata",
+       "Ahmedabad",
+       "Coimbatore",
+       "Kochi",
+       "Trivandrum",
+       "Visakhapatnam",
+       "Vijayawada",
+       "Mangalore",
+       "Mysore",
+       "Madurai",
+       "Noida",
+       "Gurgaon",
+       "Chandigarh",
+       "Jaipur",
+       "Indore",
+       "Nagpur",
+       "Bhubaneswar",
+       "Remote / Work from Home",
+       "Any location"
+      ]
      },
      {
       "key": "preferredWorkMode",
