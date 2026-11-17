@@ -38,13 +38,13 @@ async function fillExperiencedMock(c, email) {
       "upload-your-documents": { aadhaarNumber: "234567890009", panNumber: "ABCDE1234F", noPreviousCompany: "",
         documents: { updatedResume: ref(files.resume), experienceLetters: ref(files.exp), aadhaarCard: ref(files.idDoc), panCard: ref(files.pan), provisionalCertificate: ref(files.prov), trainingCertificate: ref(files.train), currentOfferLetter: ref(files.offer), previousRelievingLetter: ref(files.relieving) } },
       "personal-contact": { fullName: "Priya Raman", dateOfBirth: "1994-06-15", gender: "Female", profilePhoto: ref(files.photo), mobileNumber: "9876543210", email, whatsappNumber: "9876543210", governmentIdType: "Aadhaar", governmentIdNumber: "XXXX XXXX 0009", idRegisteredMobile: "XXXXXX3210", isGovtIdVerified: "Yes", maskedGovtId: "XXXX XXXX 0009" },
-      "current-career-status": { currentEmploymentStatus: "Currently Employed", currentCompany: "Omega Healthcare", currentDesignation: "Senior Medical Coder", primaryCareerCategory: "Medical Coding", careerAvailability: "Open to Opportunities", noticePeriod: "Yes", noticePeriodDays: "30", preferredWorkLocation: "Chennai, Bengaluru, Hyderabad", preferredWorkMode: "Hybrid" },
     },
     2: {
-      education: { highestQualification: "UG", degreeCourse: "B.Pharm", specialization: "Pharmacy", collegeName: "SRM Institute of Science and Technology", university: "SRM University", yearOfPassing: "2016", percentageCgpa: "8.2 CGPA", educationMode: "Regular" },
+      education: { highestQualification: "UG", degreeCourse: "B.Pharm", specialization: "Pharmacy", collegeName: "SRM Institute of Science and Technology", university: "SRM University", yearOfJoining: "2012", yearOfPassing: "2016", courseCompleted: "Yes", hasArrears: "No", percentageCgpa: "8.2 CGPA", educationMode: "Regular" },
       "training-academy-history": [{ academyTrainingProvider: "ThoughtFlows Medical Coding Academy", branchLocation: "Chennai", courseName: "Certified Professional Coder Training", primaryDomain: "Medical Coding", secondaryDomain: "Medical Auditing", trainingMode: "Classroom", courseStartDate: "2016-08-01", courseCompletionDate: "2017-01-31" }],
     },
     3: {
+      "current-career-status": { currentEmploymentStatus: "Currently Employed", currentCompany: "Omega Healthcare", currentDesignation: "Senior Medical Coder", primaryCareerCategory: "Medical Coding", careerAvailability: "Open to Opportunities", noticePeriod: "Yes", noticePeriodDays: "30", preferredWorkLocation: "Chennai, Bengaluru, Hyderabad", preferredWorkMode: "Hybrid" },
       docs: [{ ...ref(files.empProof), docType: "Employment Proof" }],
       "current-previous-employment-entry": [
         { companyName: "Omega Healthcare", companyLocation: "Chennai, India", department: "Coding", designation: "Senior Medical Coder", employmentType: "Full-time", dateOfJoining: "2021-03-01", currentlyWorkingHere: "Yes", rolesResponsibilities: "Surgery and E/M coding for US healthcare clients, audits of junior coders, denial analysis." },

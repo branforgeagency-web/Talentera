@@ -20,7 +20,7 @@ describe("fresher -> experienced prefill", () => {
   test("maps identity, education, training, certs, placement", () => {
     const p = buildPrefill(fresher(), placed);
     expect(p[1]["personal-contact"]).toMatchObject({ fullName: "Ananya Sharma", dateOfBirth: "1998-08-15", gender: "Female", mobileNumber: "9876543210", email: "a@b.com" });
-    expect(p[1]["current-career-status"]).toMatchObject({ currentEmploymentStatus: "Currently Employed", currentCompany: "Omega Healthcare", primaryCareerCategory: "Medical Coding", preferredWorkLocation: "Chennai, Bengaluru" });
+    expect(p[3]["current-career-status"]).toMatchObject({ currentEmploymentStatus: "Currently Employed", currentCompany: "Omega Healthcare", primaryCareerCategory: "Medical Coding", preferredWorkLocation: "Chennai, Bengaluru" });
     expect(p[2].education).toMatchObject({ highestQualification: "UG", yearOfPassing: "2020", percentageCgpa: "8.1" });
     expect(p[2]["training-applicability"].attendedAcademyTraining).toBe("Yes");
     expect(p[2]["training-academy-history"][0]).toMatchObject({ academyTrainingProvider: "ThoughtFlows", trainingMode: "Classroom", courseStartDate: "2023-01-01", courseCompletionDate: "2023-06-01" });
