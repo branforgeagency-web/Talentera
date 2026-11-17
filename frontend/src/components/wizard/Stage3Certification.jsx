@@ -1412,6 +1412,11 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
         @media (max-width: 640px) {
           .s3-cert-card-mini { grid-template-columns: 1fr; }
         }
+        .s3-cert-card-mini { grid-template-columns: 52px 1fr auto !important; align-items: start; }
+        .s3-cert-actions2 { grid-column: 3; grid-row: 1; display: flex; gap: 8px; align-items: center; }
+        .s3-cert-foot2 { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 10px; border-top: 1px dashed #E2E8F0; }
+        .s3-cert-delete-btn { background: #FEF2F2 !important; border-color: #FECACA !important; color: #B91C1C !important; }
+        @media (max-width: 680px) { .s3-cert-card-mini { grid-template-columns: 52px 1fr !important; } .s3-cert-actions2 { grid-column: 1 / -1; grid-row: auto; } }
         .s3-cert-card-mini:hover { border-color: var(--gold); box-shadow: 0 4px 12px rgba(15,27,61,.05); }
         .s3-cert-mini-logo {
           width: 52px;
@@ -2628,27 +2633,29 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                             {item.body} · {item.region} · Issued {item.issueDate || "—"} · Renews {item.expiryDate || "—"}{Number.isFinite(item.percentage) ? ` · Score ${item.percentage}%` : ""}
                           </div>
                         </div>
-                        <div className="s3-cert-mini-id">ID ****{item.memberId ? item.memberId.slice(-4) : "—"}</div>
-                        <div className={`s3-cert-mini-badge ${item.badgeClass || "green"}`}>
-                          <i className="fa-solid fa-circle" /> {item.status || (item.isReal === true ? "Real · Verified" : item.isReal === false ? "Fake · Invalid" : "Pending Review")}
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <div className="s3-cert-actions2">
                           <button
                             type="button"
                             onClick={() => handleEditCert(idx)}
                             className="s3-cert-edit-btn"
                             title="Edit this credential"
                           >
-                            ✎ Edit
+                            <i className="fa-solid fa-pen" /> Edit
                           </button>
                           <button
                             type="button"
                             onClick={() => handleRemoveCertFromStack(idx)}
-                            style={{ background: "transparent", border: "none", color: "#EF4444", cursor: "pointer", fontWeight: 700, padding: "0 6px", fontSize: 18 }}
-                            title="Remove credential"
+                            className="s3-cert-edit-btn s3-cert-delete-btn"
+                            title="Delete credential"
                           >
-                            ×
+                            <i className="fa-solid fa-trash" /> Delete
                           </button>
+                        </div>
+                        <div className="s3-cert-foot2">
+                        <div className="s3-cert-mini-id">Certification ID: ****{item.memberId ? item.memberId.slice(-4) : "—"}</div>
+                        <div className={`s3-cert-mini-badge ${item.badgeClass || "green"}`}>
+                          <i className="fa-solid fa-circle" /> {item.status || (item.isReal === true ? "Real · Verified" : item.isReal === false ? "Fake · Invalid" : "Pending Review")}
+                        </div>
                         </div>
                       </div>
                     ))}

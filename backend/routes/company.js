@@ -845,11 +845,16 @@ function formatCandidateForCompany(candidate, isKycVerified, plan) {
         degreeCertUrl: isKycVerified && canViewScoresAndCerts ? (candidate.stage1?.degreeCertUrl || "") : "",
         list: Array.isArray(candidate.stage1?.education) ? candidate.stage1.education : [],
       },
-      resume: {
-        url: isKycVerified ? (candidate.resumeUrl || candidate.stage7?.resumeUrl || "") : "",
-        fileName: candidate.resumeFileName || candidate.stage7?.resumeFileName || "",
-        verifyPath: `/verify/${candidate._id}`,
-      },
+      resume: (() => {
+        // Experienced candidates keep their resume in the passport (Stage 1 upload or Stage 7 upload / built resume)
+        const xs = candidate.experienced?.stages || {};
+        const xRef = xs[7]?.["career-documents"]?.latestResume || xs[1]?.["upload-your-documents"]?.documents?.updatedResume || null;
+        return {
+          url: isKycVerified ? (candidate.resumeUrl || candidate.stage7?.resumeUrl || xRef?.url || "") : "",
+          fileName: candidate.resumeFileName || candidate.stage7?.resumeFileName || xRef?.name || "",
+          verifyPath: `/verify/${candidate._id}`,
+        };
+      })(),
       completedStages: candidate.completedStages,
       score: canViewScoresAndCerts ? scoring.score : null,
       badge: canViewScoresAndCerts ? scoring.badge : null,
