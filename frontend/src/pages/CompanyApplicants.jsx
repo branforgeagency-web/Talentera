@@ -845,24 +845,6 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
             </Section>
           ) : null}
 
-          <Section title="Self-Introduction Video">
-            {(videoIntro.videoUrl || c.videoUrl) ? (
-              <div>
-                <video controls src={getAssetUrl(videoIntro.videoUrl || c.videoUrl)} style={{ width: "100%", maxHeight: 300, borderRadius: 10, background: "#000", display: "block" }} />
-                {videoIntro.aiScore !== undefined && (
-                  <div style={{ marginTop: 8, fontSize: 13, color: "#15803D", fontWeight: 700 }}>
-                    AI Communication Score: {videoIntro.aiScore}%
-                  </div>
-                )}
-                {videoIntro.duration && <Row label="Duration" value={videoIntro.duration} />}
-              </div>
-            ) : (
-              <div style={{ fontSize: 13, color: "#64748B", background: "#F8FAFC", padding: 12, borderRadius: 8, textAlign: "center" }}>
-                No video introduction recorded yet
-              </div>
-            )}
-          </Section>
-
           <Section title="Resume">
             {resumeInfo.url ? (
               <div style={{ padding: "4px 0", fontSize: 13.5 }}>
