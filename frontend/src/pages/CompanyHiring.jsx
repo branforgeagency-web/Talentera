@@ -849,7 +849,7 @@ function TechnicalTab({ data, byStage, sel, toggle, toggleAll, selIds, act, busy
                 {nameCell(a)}
                 <td style={td}>{t?.panelName ? <><strong>{t.panelName}</strong><div style={{ fontSize: 10.5, color: "#64748B" }}>{(t.members || []).join(", ")}</div></> : <Pill bg="#FEF3C7" color="#92400E">Not allocated</Pill>}</td>
                 <td style={td}>
-                  {t?.mode === "virtual" && <><Pill bg="#DBEAFE" color="#1D4ED8">Virtual</Pill><div style={{ fontSize: 11, marginTop: 4 }}><a href={t.meetingLink} target="_blank" rel="noreferrer" style={{ color: "#1D4ED8", fontWeight: 800 }}>Join room →</a></div><div style={{ fontSize: 11, marginTop: 4 }}>{(t.joinedAt || t.attendanceMarkedAt) ? <span style={{ color: "#166534" }}>{t.joinedAt ? `candidate joined ${fmtDate(t.joinedAt)}` : "attendance recorded"}</span> : <span style={{ color: "#B45309" }}>not joined yet</span>}</div></>}
+                  {t?.mode === "virtual" && <><Pill bg="#DBEAFE" color="#1D4ED8">Virtual</Pill><div style={{ fontSize: 11, marginTop: 4 }}>{t.meetingLink ? <a href={t.meetingLink} target="_blank" rel="noreferrer" style={{ color: "#1D4ED8", fontWeight: 800 }}>Join room →</a> : <span style={{ color: "#B45309", fontWeight: 700 }}>No link set - add one in Setup</span>}</div><div style={{ fontSize: 11, marginTop: 4 }}>{(t.joinedAt || t.attendanceMarkedAt) ? <span style={{ color: "#166534" }}>{t.joinedAt ? `candidate joined ${fmtDate(t.joinedAt)}` : "attendance recorded"}</span> : <span style={{ color: "#B45309" }}>not joined yet</span>}</div></>}
                   {t?.mode === "offline" && <><Pill bg="#FEF3C7" color="#92400E">Offline</Pill><div style={{ fontSize: 11, marginTop: 4 }}>Code <strong>{t.checkinToken}</strong> · {t.checkedInAt ? <span style={{ color: "#166534" }}>checked in {fmtDate(t.checkedInAt)}</span> : <button type="button" onClick={() => act(() => companyApi.post(`/company/hiring/applications/${a.id}/checkin`), "Checked in.")} style={{ background: "none", border: "none", color: "#1D4ED8", fontWeight: 800, cursor: "pointer", padding: 0 }}>mark arrived</button>}</div></>}
                   {t?.scheduledAt && <div style={{ fontSize: 10.5, color: "#64748B" }}>{fmtDate(t.scheduledAt)}</div>}
                 </td>
@@ -1464,7 +1464,7 @@ function HrFormModal({ app, onClose, act, busy }) {
             </select>
           </Field>
           <Field label="INTERVIEW DATE & TIME"><input type="datetime-local" value={iv.when} onChange={setI("when")} style={{ ...inputStyle, width: "100%" }} /></Field>
-          {iv.mode === "virtual" && <Field label="MEETING LINK (OPTIONAL)"><input value={iv.link} onChange={setI("link")} placeholder="Blank = auto-generated room" style={{ ...inputStyle, width: "100%" }} /></Field>}
+          {iv.mode === "virtual" && <Field label="MEETING LINK"><input value={iv.link} onChange={setI("link")} placeholder="Paste your Zoom / Meet / Teams link" style={{ ...inputStyle, width: "100%" }} /></Field>}
           {iv.mode === "telephonic" && <Field label="CALL-FROM NUMBER (OPTIONAL)"><input value={iv.phone} onChange={setI("phone")} placeholder="e.g. +91 98xxxxxx" style={{ ...inputStyle, width: "100%" }} /></Field>}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
@@ -1752,7 +1752,7 @@ function SetupTab({ data, act, busy }) {
             </div>
           </Field>
           <Field label="DATE & TIME"><input type="datetime-local" value={ivWhen} onChange={(e) => setIvWhen(e.target.value)} style={inputStyle} /></Field>
-          <Field label="MEETING LINK (VIRTUAL ROUNDS)" style={{ flex: 1, minWidth: 240 }}><input value={ivLink} onChange={(e) => setIvLink(e.target.value)} placeholder="https://meet.google.com/... (leave blank for an auto-generated room)" style={{ ...inputStyle, width: "100%" }} /></Field>
+          <Field label="MEETING LINK (VIRTUAL ROUNDS)" style={{ flex: 1, minWidth: 240 }}><input value={ivLink} onChange={(e) => setIvLink(e.target.value)} placeholder="Paste your Zoom / Meet / Teams link" style={{ ...inputStyle, width: "100%" }} /></Field>
           <Field label="OFFICE ADDRESS (OFFLINE ROUNDS)" style={{ flex: 1, minWidth: 240 }}><input value={office} onChange={(e) => setOffice(e.target.value)} style={{ ...inputStyle, width: "100%" }} /></Field>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>

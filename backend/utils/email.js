@@ -56,12 +56,30 @@ async function sendTransactionalEmail({ to, toName, subject, html }) {
 
 // Wraps a title + inner HTML in the same visual shell used by the OTP
 // emails, so lifecycle emails look consistent with the rest of the product.
-function wrapEmailTemplate(title, bodyHtml) {
+function wrapEmailTemplate(title, bodyHtml, opts = {}) {
+  const cta = opts && opts.cta && opts.cta.url ? opts.cta : null;
+  const pre = opts && opts.preheader ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${opts.preheader}</div>` : "";
+  const button = cta
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 4px;"><tr><td style="background:#F5B41A;border-radius:8px;"><a href="${cta.url}" style="display:inline-block;padding:12px 26px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;color:#0F172A;text-decoration:none;">${cta.label || "Open Talentera"}</a></td></tr></table>`
+    : "";
   return `
-    <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; border: 1px solid #E2E8F0; border-radius: 12px; background-color: #ffffff;">
-      <h2 style="color: #0A1F3D; margin-top: 0; font-size: 20px;">${title}</h2>
-      ${bodyHtml}
-      <p style="color: #94A3B8; font-size: 11px; margin-top: 24px; margin-bottom: 0;">Talentera &middot; The Era of Talent Begins Here</p>
+    ${pre}
+    <div style="background:#F1F5F9;padding:28px 12px;font-family:Arial,Helvetica,sans-serif;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;">
+        <tr><td style="background:#0A1F3D;padding:18px 28px;">
+          <span style="font-size:20px;font-weight:800;color:#ffffff;letter-spacing:.3px;">Talent<span style="color:#F5B41A;">era</span></span>
+        </td></tr>
+        <tr><td style="padding:28px 28px 8px;">
+          <h2 style="margin:0 0 14px;color:#0A1F3D;font-size:20px;line-height:1.3;">${title}</h2>
+          <div style="color:#334155;font-size:14.5px;line-height:1.6;">${bodyHtml}</div>
+          ${button}
+        </td></tr>
+        <tr><td style="padding:18px 28px 24px;">
+          <div style="border-top:1px solid #E2E8F0;padding-top:14px;color:#94A3B8;font-size:11.5px;line-height:1.5;">
+            This is an automated message from Talentera. Please do not reply to this email.<br/>Talentera &middot; The Era of Talent Begins Here
+          </div>
+        </td></tr>
+      </table>
     </div>
   `;
 }

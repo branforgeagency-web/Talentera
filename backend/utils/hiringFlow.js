@@ -42,8 +42,10 @@ function randomToken(bytes = 8) {
   return crypto.randomBytes(bytes).toString("hex");
 }
 
-// Free, working video room (Jitsi Meet) - no account or API key needed.
+// No third-party meeting site is used by default: the company supplies the link (Setup / HR booking).
+// Set ALLOW_AUTO_MEET_LINKS=true only if free auto-generated Jitsi rooms are wanted again.
 function buildMeetingLink(app) {
+  if (process.env.ALLOW_AUTO_MEET_LINKS !== "true") return "";
   return `https://meet.jit.si/Talentera-${String(app._id).slice(-8)}-${randomToken(3)}`;
 }
 
@@ -121,7 +123,10 @@ async function notifyCandidate(app, { title, message, type = "hiring_update", co
       to: email,
       toName: name || "there",
       subject: title,
-      html: wrapEmailTemplate(title, emailHtml || `<p style="color:#475569;font-size:15px;line-height:1.5;">Hi ${name || "there"},</p><p style="color:#475569;font-size:15px;line-height:1.5;">${message}</p>`),
+      html: wrapEmailTemplate(title, emailHtml || `<p style="margin:0 0 12px;">Dear ${name || "Candidate"},</p><p style="margin:0 0 12px;">${message}</p>`, {
+        cta: { label: "Open Hiring Rounds", url: `${(process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "")}/login` },
+        preheader: message,
+      }),
     }).catch((err) => logger.warn(`Hiring email failed for ${email}: ${err.message}`));
   }
 }
