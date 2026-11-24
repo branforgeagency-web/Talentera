@@ -177,7 +177,7 @@ export default function CandidateHiringSection({ triggerToast, onChanged, profil
                 <InfoRows rows={[
                   ["Date & time", it.technical.scheduledAt ? fmtDate(it.technical.scheduledAt) : "To be confirmed - the company will update you"],
                   ["Mode", it.technical.mode === "virtual" ? "Virtual (video call)" : "In person / walk-in"],
-                  it.technical.mode === "virtual" ? ["Meeting link", it.technical.meetingLink] : ["Location", it.technical.office || "Address will be shared by the company"],
+                  it.technical.mode === "virtual" ? ["Meeting link", it.technical.meetingLink || "The company will share the link before the interview"] : ["Location", it.technical.office || "Address will be shared by the company"],
                   ["Documents to carry", it.technical.documentsToCarry],
                   ["Instructions", it.technical.instructions],
                 ]} />
@@ -185,7 +185,7 @@ export default function CandidateHiringSection({ triggerToast, onChanged, profil
                 {it.technical.interviewCompletedAt ? (
                   <div style={{ marginTop: 10 }}><Pill bg="#DCFCE7" color="#166534">✓ Completed Technical round</Pill><div style={{ fontSize: 12, color: "#475569", marginTop: 6 }}>The panel is reviewing your interview. Your result will appear here.</div></div>
                 ) : it.technical.mode === "virtual" ? (
-                  <div style={{ marginTop: 10 }}><a href={it.technical.meetingLink} target="_blank" rel="noreferrer" onClick={() => { api.post(`/candidate/hiring/technical/${it.id}/join`).then(load).catch(() => {}); }}><Btn kind="navy">Join video interview</Btn></a></div>
+                  it.technical.meetingLink ? <div style={{ marginTop: 10 }}><a href={it.technical.meetingLink} target="_blank" rel="noreferrer" onClick={() => { api.post(`/candidate/hiring/technical/${it.id}/join`).then(load).catch(() => {}); }}><Btn kind="navy">Join video interview</Btn></a></div> : <div style={{ fontSize: 12.5, color: "#475569", marginTop: 8 }}>Your meeting link will appear here once the company shares it.</div>
                 ) : (
                   <div style={{ fontSize: 12.5, color: "#475569", marginTop: 8 }}>
                     Your check-in code: <strong style={{ fontSize: 16, letterSpacing: 2 }}>{it.technical.checkinToken}</strong>
@@ -202,13 +202,13 @@ export default function CandidateHiringSection({ triggerToast, onChanged, profil
                 <InfoRows rows={[
                   ["Date & time", fmtDate(it.hrStatus.interview.scheduledAt)],
                   ["Mode", it.hrStatus.interview.modeLabel],
-                  it.hrStatus.interview.mode === "virtual" ? ["Meeting link", it.hrStatus.interview.meetingLink] : null,
+                  it.hrStatus.interview.mode === "virtual" ? ["Meeting link", it.hrStatus.interview.meetingLink || "The company will share the link before the interview"] : null,
                   it.hrStatus.interview.mode === "telephonic" ? ["Phone", it.hrStatus.interview.phone || "The HR team will call you on your registered number"] : null,
                   it.hrStatus.interview.mode === "offline" ? ["Location", it.hrStatus.interview.office] : null,
                   it.hrStatus.interview.mode === "offline" ? ["Documents to carry", it.hrStatus.interview.documentsToCarry] : null,
                   ["Interviewer", it.hrStatus.hrName],
                 ]} />
-                {it.hrStatus.interview.mode === "virtual" && <div style={{ marginTop: 10 }}><a href={it.hrStatus.interview.meetingLink} target="_blank" rel="noreferrer"><Btn kind="navy">Join HR interview (camera on)</Btn></a></div>}
+                {it.hrStatus.interview.mode === "virtual" && it.hrStatus.interview.meetingLink && <div style={{ marginTop: 10 }}><a href={it.hrStatus.interview.meetingLink} target="_blank" rel="noreferrer"><Btn kind="navy">Join HR interview (camera on)</Btn></a></div>}
               </div>
             ) : <div style={{ fontSize: 12.5, color: "#475569" }}>HR round{it.hrStatus?.hrName ? ` with ${it.hrStatus.hrName}` : ""} - the HR team will share your interview date, time and mode shortly.</div>)}
             {it.stage === "approval" && <div style={{ fontSize: 12.5, color: "#475569" }}>Your profile is with management for final approval.{it.hrStatus?.bgv?.label ? <div style={{ marginTop: 6 }}><strong>Background verification:</strong> {it.hrStatus.bgv.label}</div> : null}</div>}

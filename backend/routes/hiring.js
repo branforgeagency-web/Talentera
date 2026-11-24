@@ -23,6 +23,7 @@ const Notification = require("../models/Notification");
 const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
 const logger = require("../utils/logger");
 
+const h2link = (app) => (app.hiring && app.hiring.technical && app.hiring.technical.meetingLink) || "";
 const IN_FLOW = ["exam", "technical", "hr", "approval", "offered", "hold", "rejected"];
 
 // ---------------------------------------------------------------------------
@@ -290,7 +291,7 @@ async function completeExam(app, { score, correct, total, topicBreakdown, source
     H.setStage(app, "technical");
     H.audit(app, "System", "Auto-decision", `Passed Round 1 cutoff - moved to Technical round`);
     await H.notifyCandidate(app, {
-      title: `You cleared Round 1 at ${companyName}! 🎯`,
+      title: `You cleared Round 1 at ${companyName}!`,
       message: `Your score was ${score}% (pass mark ${cutoff}%). The technical interview is next - we'll share the details soon.`,
       companyName, email, name, emailHtml: scoreHtml,
     });
@@ -676,7 +677,7 @@ companyRouter.post("/technical/allocate", async (req, res) => {
         office: mode === "offline" ? setup.officeAddress : "",
         scores: [], status: "scheduled",
       };
-      app.interviewType = mode === "virtual" ? "Virtual (Talentera Meet)" : "In-office";
+      app.interviewType = mode === "virtual" ? "Virtual" : "In-office";
       app.interviewMeetingLink = h.technical.meetingLink;
       if (h.technical.scheduledAt) { app.interviewScheduledAt = new Date(h.technical.scheduledAt); app.interviewTimeText = h.technical.scheduledAt; }
       H.audit(app, "Company HR", "Technical round allocated", `${panel.name} - ${mode}`);
@@ -691,9 +692,9 @@ companyRouter.post("/technical/allocate", async (req, res) => {
       const row = (k, v) => (v ? `<tr><td style="padding:6px 12px 6px 0;color:#64748B;font-size:13px;vertical-align:top;white-space:nowrap;">${k}</td><td style="padding:6px 0;color:#0F172A;font-size:14px;font-weight:600;">${String(v).replace(/</g, "&lt;")}</td></tr>` : "");
       const details = `<table style="border-collapse:collapse;margin:12px 0;">${row("Interview", `Technical round - ${t.panelName}`)}${row("Date & time", whenText)}${row("Mode", mode === "virtual" ? "Virtual (video)" : "In person / walk-in")}${mode === "virtual" ? row("Meeting link", t.meetingLink) : row("Location", t.office || setup.officeAddress)}${mode === "offline" ? row("Check-in code", t.checkinToken) : ""}${row("Documents to carry", t.documentsToCarry)}${row("Instructions", t.instructions)}</table>`;
       return H.notifyCandidate(app, {
-        title: `Technical interview scheduled - ${company?.companyName || "employer"} 📅`,
+        title: `Technical interview scheduled - ${company?.companyName || "employer"}`,
         message: mode === "virtual"
-          ? `Your technical interview is set for ${whenText}. Join from Hiring Rounds in your dashboard.`
+          ? `Your technical interview is set for ${whenText}. ${h2link(app) ? "Join from Hiring Rounds in your dashboard." : "The meeting link will be shared by the company before the interview."}`
           : `Please walk in for your technical interview on ${whenText}${setup.officeAddress ? ` at ${setup.officeAddress}` : ""}. Use your check-in code at reception. Check Hiring Rounds for what to carry.`,
         type: "interview_scheduled", companyName: company?.companyName || "",
         email: app.candidateId?.email, name,
@@ -1121,7 +1122,7 @@ companyRouter.post("/approval/bulk", async (req, res) => {
           <p style="color:#475569;font-size:15px;line-height:1.5;">Congratulations - <strong>${companyName}</strong> is delighted to offer you the role of <strong>${role}</strong>.</p>
           <table style="border-collapse:collapse;margin:12px 0;font-size:14px;"><tr><td style="padding:4px 12px 4px 0;color:#64748B;">CTC</td><td style="font-weight:700;">${ctc} LPA</td></tr><tr><td style="padding:4px 12px 4px 0;color:#64748B;">Joining date</td><td style="font-weight:700;">${joinDate.toDateString()}</td></tr><tr><td style="padding:4px 12px 4px 0;color:#64748B;">Probation</td><td style="font-weight:700;">${probation} month${probation === 1 ? "" : "s"}</td></tr></table>
           <p style="color:#475569;font-size:15px;line-height:1.5;">Open Hiring Rounds in your Talentera dashboard to accept the offer.</p>`;
-        await H.notifyCandidate(app, { title: `Job offer from ${companyName}! 🎉`, message: `Congratulations! ${companyName} has offered you ${role} at ${ctc} LPA, joining ${joinDate.toDateString()}.`, type: "offer_received", companyName, email, name, emailHtml: html });
+        await H.notifyCandidate(app, { title: `Job offer from ${companyName}!`, message: `Congratulations! ${companyName} has offered you ${role} at ${ctc} LPA, joining ${joinDate.toDateString()}.`, type: "offer_received", companyName, email, name, emailHtml: html });
       } else if (action === "hold") {
         app.hiring.approval = { decision: "hold", at: new Date().toISOString(), by: "Management" };
         H.setStage(app, "hold");
